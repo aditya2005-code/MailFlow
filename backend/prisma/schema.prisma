@@ -1,9 +1,19 @@
-# Prisma schema — to be defined in Step 1.2 (database schema design)
-# generator client {
-#   provider = "prisma-client-js"
-# }
-#
-# datasource db {
-#   provider = "postgresql"
-#   url      = env("DATABASE_URL")
-# }
+// =============================================================================
+// MailFlow — Prisma Schema
+// Provider : Neon PostgreSQL (serverless PostgreSQL, free tier)
+// Client   : @prisma/client ^7.10.0
+// CLI      : prisma ^7.10.0
+//
+// Connection URL is defined in prisma.config.ts via env("DATABASE_URL").
+//
+// NOTE: Application models (User, Campaign, Email, Sender, SlackConnection)
+//       will be added in Phase 2. This file only establishes the connection.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
