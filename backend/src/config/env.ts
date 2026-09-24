@@ -1,57 +1,71 @@
 import dotenv from 'dotenv';
+import { z } from 'zod';
 
 // Load environment variables as early as possible
 dotenv.config();
 
+/**
+ * Zod schema defining the environment variable contract and defaults.
+ */
+const envSchema = z.object({
+  // ─── Application ─────────────────────────────────────────────────────────────
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.coerce.number().int().positive().default(5000),
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
 
-function optionalEnv(key: string, fallback: string): string {
-  return process.env[key] ?? fallback;
-}
-
-export const env = {
-  // ─── Server ─────────────────────────────────────────────────────────────────
-  NODE_ENV: optionalEnv('NODE_ENV', 'development') as 'development' | 'production' | 'test',
-  PORT: parseInt(optionalEnv('PORT', '5000'), 10),
-  FRONTEND_URL: optionalEnv('FRONTEND_URL', 'http://localhost:3000'),
-
-  // ─── Database ────────────────────────────────────────────────────────────────
-  // Deliberately optional at startup — Prisma will surface a connection error
-  // only when a query is actually attempted (health check must work without DB).
-  DATABASE_URL: optionalEnv('DATABASE_URL', ''),
+  // ─── PostgreSQL / Prisma ─────────────────────────────────────────────────────
+  // Optional at startup so infrastructure health checks work without active DB connection
+  DATABASE_URL: z.string().default(''),
 
   // ─── Redis ───────────────────────────────────────────────────────────────────
-  REDIS_HOST: optionalEnv('REDIS_HOST', 'localhost'),
-  REDIS_PORT: parseInt(optionalEnv('REDIS_PORT', '6379'), 10),
-  REDIS_PASSWORD: process.env['REDIS_PASSWORD'] || undefined,
+  REDIS_HOST: z.string().default('localhost'),
+  REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  REDIS_PASSWORD: z.string().optional().transform((val) => val || undefined),
 
   // ─── Elasticsearch ───────────────────────────────────────────────────────────
-  ELASTICSEARCH_URL: optionalEnv('ELASTICSEARCH_URL', 'http://localhost:9200'),
+  ELASTICSEARCH_URL: z.string().default('http://localhost:9200'),
 
-  // ─── Google OAuth ────────────────────────────────────────────────────────────
-  GOOGLE_CLIENT_ID: process.env['GOOGLE_CLIENT_ID'],
-  GOOGLE_CLIENT_SECRET: process.env['GOOGLE_CLIENT_SECRET'],
-  GOOGLE_CALLBACK_URL: process.env['GOOGLE_CALLBACK_URL'],
+  // ─── Google OAuth (Optional until Phase 4) ──────────────────────────────────
+  GOOGLE_CLIENT_ID: z.string().optional().transform((val) => val || undefined),
+  GOOGLE_CLIENT_SECRET: z.string().optional().transform((val) => val || undefined),
+  GOOGLE_CALLBACK_URL: z.string().optional().transform((val) => val || undefined),
 
-  // ─── Session ─────────────────────────────────────────────────────────────────
-  SESSION_SECRET: optionalEnv('SESSION_SECRET', 'changeme-in-production'),
+  // ─── Sessions ────────────────────────────────────────────────────────────────
+  SESSION_SECRET: z.string().default('dev-session-secret-change-in-production'),
 
-  // ─── Slack OAuth ─────────────────────────────────────────────────────────────
-  SLACK_CLIENT_ID: process.env['SLACK_CLIENT_ID'],
-  SLACK_CLIENT_SECRET: process.env['SLACK_CLIENT_SECRET'],
-  SLACK_REDIRECT_URI: process.env['SLACK_REDIRECT_URI'],
+  // ─── Slack OAuth (Optional until Phase 4) ───────────────────────────────────
+  SLACK_CLIENT_ID: z.string().optional().transform((val) => val || undefined),
+  SLACK_CLIENT_SECRET: z.string().optional().transform((val) => val || undefined),
+  SLACK_REDIRECT_URI: z.string().optional().transform((val) => val || undefined),
 
-  // ─── Worker / Rate Limiting ──────────────────────────────────────────────────
-  WORKER_CONCURRENCY: parseInt(optionalEnv('WORKER_CONCURRENCY', '5'), 10),
-  MIN_EMAIL_DELAY_MS: parseInt(optionalEnv('MIN_EMAIL_DELAY_MS', '1000'), 10),
-  MAX_EMAILS_PER_HOUR: parseInt(optionalEnv('MAX_EMAILS_PER_HOUR', '100'), 10),
+  // ─── Worker configuration ────────────────────────────────────────────────────
+  WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
+  MIN_EMAIL_DELAY_MS: z.coerce.number().int().nonnegative().default(1000),
+  MAX_EMAILS_PER_HOUR: z.coerce.number().int().positive().default(100),
 
-  // ─── Ethereal SMTP ───────────────────────────────────────────────────────────
-  ETHEREAL_HOST: process.env['ETHEREAL_HOST'],
-  ETHEREAL_PORT: process.env['ETHEREAL_PORT']
-    ? parseInt(process.env['ETHEREAL_PORT'], 10)
-    : undefined,
-  ETHEREAL_USER: process.env['ETHEREAL_USER'],
-  ETHEREAL_PASSWORD: process.env['ETHEREAL_PASSWORD'],
-} as const;
+  // ─── Ethereal SMTP (Optional until Phase 3) ──────────────────────────────────
+  ETHEREAL_HOST: z.string().optional().transform((val) => val || undefined),
+  ETHEREAL_PORT: z.preprocess(
+    (val) => (val !== undefined && val !== '' ? Number(val) : undefined),
+    z.number().int().positive().optional(),
+  ),
+  ETHEREAL_USER: z.string().optional().transform((val) => val || undefined),
+  ETHEREAL_PASSWORD: z.string().optional().transform((val) => val || undefined),
+});
 
-export type Env = typeof env;
+const parsedEnv = envSchema.safeParse(process.env);
+
+if (!parsedEnv.success) {
+  console.error('❌ Environment variable validation failed:');
+  for (const issue of parsedEnv.error.issues) {
+    const fieldPath = issue.path.join('.');
+    console.error(`   - ${fieldPath}: ${issue.message}`);
+  }
+  throw new Error('Invalid environment variable configuration.');
+}
+
+/**
+ * Validated, strongly typed environment configuration singleton.
+ */
+export const env = parsedEnv.data;
+export type Env = z.infer<typeof envSchema>;

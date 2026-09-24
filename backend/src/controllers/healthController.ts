@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ApiResponse } from '../types/index.js';
+import { env } from '../config/env.js';
 
 interface HealthData {
   status: 'ok';
@@ -19,7 +20,7 @@ export function healthCheck(_req: Request, res: Response): void {
     success: true,
     data: {
       status: 'ok',
-      environment: process.env['NODE_ENV'] ?? 'development',
+      environment: env.NODE_ENV,
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
     },
