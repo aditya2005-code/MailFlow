@@ -1,0 +1,4 @@
+# queues/
+#
+# BullMQ queue definitions will live here (Step 1.2+).
+# Example: emailQueue.ts will export the BullMQ Queue instance.

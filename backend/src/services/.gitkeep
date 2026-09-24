@@ -1,0 +1,8 @@
+// ─── Services barrel ─────────────────────────────────────────────────────────
+//
+// Future service modules will be exported from here, e.g.:
+//   export * from './emailService.js';
+//   export * from './authService.js';
+//
+// Kept as a placeholder so the directory is tracked by Git and the import
+// path is reserved for future use.

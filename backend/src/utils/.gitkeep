@@ -1,0 +1,6 @@
+# utils/
+#
+# Shared utility helpers will live here, e.g.:
+#   logger.ts     — structured logging wrapper
+#   asyncHandler.ts — Express async error wrapper
+#   pagination.ts — cursor/offset pagination helpers

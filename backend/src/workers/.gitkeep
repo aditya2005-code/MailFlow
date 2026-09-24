@@ -1,0 +1,4 @@
+# workers/
+#
+# BullMQ worker definitions will live here (Step 1.2+).
+# Example: emailWorker.ts will process jobs from the email queue.
