@@ -37,4 +37,50 @@ if (env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
+export interface DatabaseHealthResult {
+  status: 'up' | 'down';
+  latencyMs?: number;
+  error?: string;
+}
+
+/**
+ * Lightweight connectivity check for PostgreSQL / Prisma health checks.
+ */
+export async function checkDatabaseHealth(timeoutMs = 10000): Promise<DatabaseHealthResult> {
+  if (!env.DATABASE_URL) {
+    return {
+      status: 'down',
+      error: 'DATABASE_URL is not configured',
+    };
+  }
+
+  const startTime = Date.now();
+  let timerId: NodeJS.Timeout | undefined;
+
+  try {
+    const queryPromise = prisma.$queryRaw<Array<{ connected: number }>>`SELECT 1 as connected`;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timerId = setTimeout(() => reject(new Error('Database query timed out')), timeoutMs);
+    });
+
+    await Promise.race([queryPromise, timeoutPromise]);
+    const latencyMs = Date.now() - startTime;
+
+    return {
+      status: 'up',
+      latencyMs,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      status: 'down',
+      error: errorMessage.includes('timed out') ? 'Database query timed out' : 'Database connection failed',
+    };
+  } finally {
+    if (timerId) {
+      clearTimeout(timerId);
+    }
+  }
+}
+
 export default prisma;

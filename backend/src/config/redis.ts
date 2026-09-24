@@ -40,16 +40,24 @@ export interface RedisHealthResult {
 /**
  * Lightweight connectivity check for Redis reachable verification.
  */
-export async function checkRedisHealth(): Promise<RedisHealthResult> {
+export async function checkRedisHealth(timeoutMs = 5000): Promise<RedisHealthResult> {
   const client = getRedisClient();
   const startTime = Date.now();
+  let timerId: NodeJS.Timeout | undefined;
 
   try {
-    if (client.status === 'wait') {
-      await client.connect();
-    }
-    
-    const response = await client.ping();
+    const pingPromise = (async () => {
+      if (client.status === 'wait') {
+        await client.connect();
+      }
+      return client.ping();
+    })();
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timerId = setTimeout(() => reject(new Error('Redis ping timed out')), timeoutMs);
+    });
+
+    const response = await Promise.race([pingPromise, timeoutPromise]);
     const latencyMs = Date.now() - startTime;
 
     if (response === 'PONG') {
@@ -67,8 +75,12 @@ export async function checkRedisHealth(): Promise<RedisHealthResult> {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       status: 'down',
-      error: errorMessage,
+      error: errorMessage.includes('timed out') ? 'Redis ping timed out' : 'Redis connection failed',
     };
+  } finally {
+    if (timerId) {
+      clearTimeout(timerId);
+    }
   }
 }
 

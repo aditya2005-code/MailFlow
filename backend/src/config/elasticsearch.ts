@@ -42,12 +42,18 @@ export interface ElasticsearchHealthResult {
 /**
  * Lightweight connectivity check for Elasticsearch reachability verification.
  */
-export async function checkElasticsearchHealth(): Promise<ElasticsearchHealthResult> {
+export async function checkElasticsearchHealth(timeoutMs = 5000): Promise<ElasticsearchHealthResult> {
   const client = getElasticsearchClient();
   const startTime = Date.now();
+  let timerId: NodeJS.Timeout | undefined;
 
   try {
-    const info = await client.info();
+    const infoPromise = client.info();
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timerId = setTimeout(() => reject(new Error('Elasticsearch ping timed out')), timeoutMs);
+    });
+
+    const info = await Promise.race([infoPromise, timeoutPromise]);
     const latencyMs = Date.now() - startTime;
 
     return {
@@ -60,8 +66,12 @@ export async function checkElasticsearchHealth(): Promise<ElasticsearchHealthRes
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       status: 'down',
-      error: errorMessage,
+      error: errorMessage.includes('timed out') ? 'Elasticsearch ping timed out' : 'Elasticsearch connection failed',
     };
+  } finally {
+    if (timerId) {
+      clearTimeout(timerId);
+    }
   }
 }
 
