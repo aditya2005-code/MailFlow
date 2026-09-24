@@ -20,9 +20,9 @@ export const env = {
   DATABASE_URL: optionalEnv('DATABASE_URL', ''),
 
   // ─── Redis ───────────────────────────────────────────────────────────────────
-  REDIS_HOST: optionalEnv('REDIS_HOST', '127.0.0.1'),
+  REDIS_HOST: optionalEnv('REDIS_HOST', 'localhost'),
   REDIS_PORT: parseInt(optionalEnv('REDIS_PORT', '6379'), 10),
-  REDIS_PASSWORD: process.env['REDIS_PASSWORD'],
+  REDIS_PASSWORD: process.env['REDIS_PASSWORD'] || undefined,
 
   // ─── Elasticsearch ───────────────────────────────────────────────────────────
   ELASTICSEARCH_URL: optionalEnv('ELASTICSEARCH_URL', 'http://localhost:9200'),
