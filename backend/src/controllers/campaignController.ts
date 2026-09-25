@@ -8,11 +8,15 @@ export const getCampaigns = asyncHandler(async (req: Request, res: Response): Pr
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 20;
   const status = req.query.status as CampaignStatus | undefined;
+  const sortBy = req.query.sortBy as any;
+  const sortOrder = req.query.sortOrder as any;
 
   const result = await campaignService.getCampaignsByUser(req.userId!, {
     page,
     limit,
     status,
+    sortBy,
+    sortOrder,
   });
 
   const body: ApiResponse = {

@@ -74,6 +74,15 @@ export const senderService = {
 
   async deleteSender(userId: string, senderId: string): Promise<Sender> {
     await this.getSenderById(userId, senderId); // Enforces existence and user ownership
-    return senderRepository.delete(senderId, userId);
+    try {
+      return await senderRepository.delete(senderId, userId);
+    } catch (error: any) {
+      if (error?.code === 'P2003') {
+        throw new ConflictError(
+          'Cannot delete sender identity because it is currently associated with existing campaigns or emails.',
+        );
+      }
+      throw error;
+    }
   },
 };
