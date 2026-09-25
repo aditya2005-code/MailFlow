@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { emailService } from '../services/emailService.js';
 import { schedulerService } from '../services/schedulerService.js';
+import { elasticsearchService } from '../services/elasticsearchService.js';
 import { ApiResponse } from '../types/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { EmailStatus } from '@prisma/client';
@@ -109,6 +110,33 @@ export const rescheduleEmail = asyncHandler(async (req: Request, res: Response):
     success: true,
     data: result,
     message: 'Email rescheduled successfully',
+  };
+  res.status(200).json(body);
+});
+
+export const searchEmails = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const query = (req.query.q as string) || '';
+  const status = req.query.status as EmailStatus | undefined;
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+
+  const result = await elasticsearchService.searchEmails({
+    userId: req.userId!,
+    query,
+    status,
+    page,
+    limit,
+  });
+
+  const body: ApiResponse = {
+    success: true,
+    data: result.results,
+    pagination: {
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+    },
   };
   res.status(200).json(body);
 });

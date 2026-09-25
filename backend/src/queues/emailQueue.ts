@@ -33,7 +33,7 @@ export const defaultEmailJobOptions: JobsOptions = {
   attempts: 3,
   backoff: {
     type: 'exponential',
-    delay: 5000,
+    delay: 1000, // 1s initial delay (1s, 2s, 4s...)
   },
   removeOnComplete: {
     age: 86400, // 24 hours

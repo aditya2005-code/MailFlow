@@ -33,11 +33,22 @@ export function createSmtpTransporter(): Transporter {
 }
 
 let smtpTransporterInstance: Transporter | null = null;
+let customTransporterOverride: Transporter | null = null;
+
+/**
+ * Overrides the SMTP transporter instance for testing purposes.
+ */
+export function setSmtpTransporterOverride(transporter: Transporter | null): void {
+  customTransporterOverride = transporter;
+}
 
 /**
  * Get or initialize a singleton Nodemailer SMTP transporter instance.
  */
 export function getSmtpTransporter(): Transporter {
+  if (customTransporterOverride) {
+    return customTransporterOverride;
+  }
   if (!smtpTransporterInstance) {
     smtpTransporterInstance = createSmtpTransporter();
   }
