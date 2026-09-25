@@ -28,6 +28,7 @@
     "es:logs": "docker compose -f ../docker-compose.yml logs -f elasticsearch",
     "es:test": "tsx src/utils/test-elasticsearch-connection.ts",
     "es:search:test": "tsx src/utils/test-elasticsearch-search.ts",
+    "bullboard:test": "tsx src/utils/test-bull-board.ts",
     "services:up": "docker compose -f ../docker-compose.yml up -d",
     "postinstall": "prisma generate"
   },
@@ -41,6 +42,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@bull-board/api": "^9.10.1",
+    "@bull-board/express": "^9.10.1",
     "@elastic/elasticsearch": "^8.19.2",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",

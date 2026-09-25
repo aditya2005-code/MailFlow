@@ -8,6 +8,8 @@ import healthRouter from './routes/health.js';
 import apiRouter from './routes/index.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
+import { getBullBoardAdapter } from './config/bullBoard.js';
+
 /**
  * Creates and configures the Express application.
  *
@@ -40,6 +42,10 @@ export function createApp(): Application {
 
   // ─── Direct Health Check Shortcut ────────────────────────────────────────────
   app.use('/health', healthRouter);
+
+  // ─── Bull Board Dashboard Route ─────────────────────────────────────────────
+  const bullBoardAdapter = getBullBoardAdapter();
+  app.use('/admin/queues', bullBoardAdapter.getRouter());
 
   // ─── API Routes ───────────────────────────────────────────────────────────────
   app.use('/api/v1', apiRouter);
