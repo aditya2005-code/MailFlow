@@ -1,13 +1,21 @@
 import { Router } from 'express';
 import healthRouter from './health.js';
+import userRouter from './user.routes.js';
+import senderRouter from './sender.routes.js';
+import campaignRouter from './campaign.routes.js';
+import emailRouter from './email.routes.js';
+import slackRouter from './slack.routes.js';
 
 const router = Router();
 
-// ─── Mount sub-routers ────────────────────────────────────────────────────────
+// ─── Health Routes ───────────────────────────────────────────────────────────
 router.use('/health', healthRouter);
 
-// Future routers will be mounted here, e.g.:
-// router.use('/auth',   authRouter);
-// router.use('/emails', emailsRouter);
+// ─── Core Application REST API Routes ────────────────────────────────────────
+router.use('/users', userRouter);
+router.use('/senders', senderRouter);
+router.use('/campaigns', campaignRouter);
+router.use('/emails', emailRouter);
+router.use('/slack', slackRouter);
 
 export default router;
