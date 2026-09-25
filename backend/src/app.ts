@@ -2,12 +2,14 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 
 import { env } from './config/env.js';
 import healthRouter from './routes/health.js';
 import apiRouter from './routes/index.js';
+import authRouter from './routes/auth.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
-
+import { configurePassport } from './config/passport.js';
 import { getBullBoardAdapter } from './config/bullBoard.js';
 
 /**
@@ -19,8 +21,15 @@ import { getBullBoardAdapter } from './config/bullBoard.js';
 export function createApp(): Application {
   const app = express();
 
+  // ─── Passport & OAuth Setup ──────────────────────────────────────────────────
+  const passport = configurePassport();
+  app.use(passport.initialize());
+
   // ─── Security ────────────────────────────────────────────────────────────────
   app.use(helmet());
+
+  // ─── Cookie Parser ───────────────────────────────────────────────────────────
+  app.use(cookieParser());
 
   // ─── CORS ────────────────────────────────────────────────────────────────────
   app.use(
@@ -42,6 +51,10 @@ export function createApp(): Application {
 
   // ─── Direct Health Check Shortcut ────────────────────────────────────────────
   app.use('/health', healthRouter);
+
+  // ─── Auth Routes (/api/auth & /api/v1/auth) ──────────────────────────────────
+  app.use('/api/auth', authRouter);
+  app.use('/api/v1/auth', authRouter);
 
   // ─── Bull Board Dashboard Route ─────────────────────────────────────────────
   const bullBoardAdapter = getBullBoardAdapter();

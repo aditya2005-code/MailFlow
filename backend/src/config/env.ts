@@ -30,8 +30,9 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional().transform((val) => val || undefined),
   GOOGLE_CALLBACK_URL: z.string().optional().transform((val) => val || undefined),
 
-  // ─── Sessions ────────────────────────────────────────────────────────────────
+  // ─── Sessions / Auth ─────────────────────────────────────────────────────────
   SESSION_SECRET: z.string().default('dev-session-secret-change-in-production'),
+  JWT_SECRET: z.string().default('dev-jwt-secret-mailflow-2026-production-change'),
 
   // ─── Slack OAuth (Optional until Phase 4) ───────────────────────────────────
   SLACK_CLIENT_ID: z.string().optional().transform((val) => val || undefined),
