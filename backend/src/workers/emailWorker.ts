@@ -8,6 +8,7 @@ import { emailRepository } from '../repositories/emailRepository.js';
 import { getSmtpTransporter } from '../config/smtp.js';
 import { rateLimitService } from '../services/rateLimitService.js';
 import { elasticsearchService } from '../services/elasticsearchService.js';
+import { slackConnectionService } from '../services/slackConnectionService.js';
 
 let emailWorkerInstance: Worker<EmailJobPayload> | null = null;
 
@@ -79,6 +80,19 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     console.log(
       `[worker] ⏳ Rate limit enforced (${rateLimitResult.reason}). Rescheduling email ${emailId} with ${rateLimitResult.delayMs}ms delay...`,
     );
+
+    // Trigger Slack notification for the user if hourly limit reached (safe async, non-blocking)
+    if (rateLimitResult.reason === 'hourly_limit_reached' && email.campaign?.userId) {
+      slackConnectionService
+        .notifyRateLimitExceeded(email.campaign.userId, {
+          rateLimitValue: env.MAX_EMAILS_PER_HOUR,
+          nextAvailableTimeMs:
+            rateLimitResult.nextAvailableTimeMs || Date.now() + rateLimitResult.delayMs,
+        })
+        .catch((err) => {
+          console.error('[worker] ⚠️ Slack notification attempt failed:', err?.message || err);
+        });
+    }
 
     // Re-enqueue delayed job in BullMQ without dropping or failing the email
     await addEmailJob(emailId, rateLimitResult.delayMs);

@@ -1,5 +1,9 @@
 import { Router } from 'express';
 import {
+  getSlackAuthUrl,
+  handleSlackCallback,
+  getSlackStatus,
+  disconnectSlack,
   getSlackConnections,
   createOrUpdateSlackConnection,
   deleteSlackConnection,
@@ -11,10 +15,18 @@ import { createSlackConnectionSchema } from '../validators/slackValidator.js';
 
 const router = Router();
 
-router.use(requireAuth);
+// OAuth Endpoints
+router.get('/auth', requireAuth, getSlackAuthUrl);
+router.get('/callback', handleSlackCallback);
 
-router.get('/', getSlackConnections);
-router.post('/', validateRequest({ body: createSlackConnectionSchema }), createOrUpdateSlackConnection);
-router.delete('/:id', validateRequest({ params: idParamSchema }), deleteSlackConnection);
+// Connection Management Endpoints
+router.get('/status', requireAuth, getSlackStatus);
+router.delete('/disconnect', requireAuth, disconnectSlack);
+
+// Direct CRUD routes for backward compatibility
+router.get('/', requireAuth, getSlackConnections);
+router.post('/', requireAuth, validateRequest({ body: createSlackConnectionSchema }), createOrUpdateSlackConnection);
+router.delete('/:id', requireAuth, validateRequest({ params: idParamSchema }), deleteSlackConnection);
 
 export default router;
+
