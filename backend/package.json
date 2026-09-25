@@ -21,6 +21,7 @@
     "worker": "tsx src/workers/index.ts",
     "worker:test": "tsx src/utils/test-worker-delivery.ts",
     "reliability:test": "tsx src/utils/test-reliability-idempotency.ts",
+    "limiter:test": "tsx src/utils/test-rate-limiter.ts",
     "es:up": "docker compose -f ../docker-compose.yml up -d elasticsearch",
     "es:down": "docker compose -f ../docker-compose.yml down",
     "es:logs": "docker compose -f ../docker-compose.yml logs -f elasticsearch",

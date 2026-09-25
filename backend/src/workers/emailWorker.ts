@@ -1,11 +1,12 @@
 import { Worker, Job } from 'bullmq';
 import nodemailer from 'nodemailer';
 import { EmailStatus } from '@prisma/client';
-import { EMAIL_QUEUE_NAME, EmailJobPayload } from '../queues/index.js';
+import { EMAIL_QUEUE_NAME, EmailJobPayload, addEmailJob } from '../queues/index.js';
 import { redisOptions } from '../config/redis.js';
 import { env } from '../config/env.js';
 import { emailRepository } from '../repositories/emailRepository.js';
 import { getSmtpTransporter } from '../config/smtp.js';
+import { rateLimitService } from '../services/rateLimitService.js';
 
 let emailWorkerInstance: Worker<EmailJobPayload> | null = null;
 
@@ -24,14 +25,15 @@ let emailWorkerInstance: Worker<EmailJobPayload> | null = null;
  * 2. Database-level atomic claim: Conditional UPDATE (WHERE id = emailId AND status = SCHEDULED).
  * 3. Pre-send status checks: Safe skipping of emails already in 'SENT' or 'FAILED' state.
  * 4. Stalled-job recovery: Controlled re-execution via BullMQ stalled-job lock management.
+ * 5. Distributed rate-limiting: Redis-backed atomic reservation for hourly & min-delay slots.
  * ====================================================================================
  */
 
 /**
  * Core processor for email sending jobs.
  *
- * Handles atomic status transitions, Nodemailer SMTP delivery, sanitized error tracking,
- * and BullMQ retry integration.
+ * Handles idempotency checks, distributed rate limiting, atomic status transitions,
+ * Nodemailer SMTP delivery, sanitized error tracking, and BullMQ retry integration.
  */
 export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
   const { emailId } = job.data;
@@ -63,15 +65,32 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     return { status: 'skipped', reason: 'already_failed' };
   }
 
-  // 4. Atomic Status Transition (SCHEDULED -> PROCESSING)
-  // If email is currently PROCESSING:
-  // Allow processing ONLY IF this is a BullMQ retry/stalled recovery (currentAttempt > 1).
-  // If currentAttempt === 1 and status is PROCESSING, another active worker claimed it.
+  // 4. Pre-claim check if currently PROCESSING
   if (email.status === EmailStatus.PROCESSING && currentAttempt === 1) {
     console.warn(`[worker] ⚠️ Email ${emailId} is currently being processed by another worker. Skipping.`);
     return { status: 'skipped', reason: 'already_processing' };
   }
 
+  // 5. Distributed Rate Limit & Inter-Email Delay Reservation
+  const rateLimitResult = await rateLimitService.acquireSendSlot();
+
+  if (!rateLimitResult.allowed) {
+    console.log(
+      `[worker] ⏳ Rate limit enforced (${rateLimitResult.reason}). Rescheduling email ${emailId} with ${rateLimitResult.delayMs}ms delay...`,
+    );
+
+    // Re-enqueue delayed job in BullMQ without dropping or failing the email
+    await addEmailJob(emailId, rateLimitResult.delayMs);
+
+    return {
+      status: 'rescheduled',
+      reason: rateLimitResult.reason,
+      delayMs: rateLimitResult.delayMs,
+      nextAvailableTimeMs: rateLimitResult.nextAvailableTimeMs,
+    };
+  }
+
+  // 6. Atomic Status Transition (SCHEDULED -> PROCESSING)
   if (email.status === EmailStatus.SCHEDULED) {
     const claimed = await emailRepository.updateStatusAtomic(
       emailId,
@@ -86,7 +105,7 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     console.log(`[worker] 🔒 Email ${emailId} claimed atomically (SCHEDULED -> PROCESSING)`);
   }
 
-  // 5. Send Email via Nodemailer SMTP
+  // 7. Send Email via Nodemailer SMTP
   try {
     const transporter = getSmtpTransporter();
 
@@ -109,7 +128,7 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
       `[worker] ✅ SMTP accepted message ${info.messageId} for email ${emailId}. Preview URL: ${previewUrl || 'N/A'}`,
     );
 
-    // 6. Update PostgreSQL state: PROCESSING -> SENT
+    // 8. Update PostgreSQL state: PROCESSING -> SENT
     await emailRepository.updateStatusAtomic(
       emailId,
       EmailStatus.PROCESSING,
@@ -193,7 +212,9 @@ export function getEmailWorker(): Worker<EmailJobPayload> {
       console.error('[worker] Worker instance error:', err.message);
     });
 
-    console.log(`[worker] 🚀 Email worker initialized (concurrency=${concurrency}, lockDuration=30s, stalledInterval=30s)`);
+    console.log(
+      `[worker] 🚀 Email worker initialized (concurrency=${concurrency}, maxPerHour=${env.MAX_EMAILS_PER_HOUR}, minDelayMs=${env.MIN_EMAIL_DELAY_MS})`,
+    );
   }
 
   return emailWorkerInstance;

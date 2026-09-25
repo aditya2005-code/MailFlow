@@ -40,7 +40,7 @@ const envSchema = z.object({
 
   // ─── Worker configuration ────────────────────────────────────────────────────
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
-  MIN_EMAIL_DELAY_MS: z.coerce.number().int().nonnegative().default(1000),
+  MIN_EMAIL_DELAY_MS: z.coerce.number().int().nonnegative().default(2000),
   MAX_EMAILS_PER_HOUR: z.coerce.number().int().positive().default(100),
 
   // ─── Ethereal SMTP (Optional until Phase 3) ──────────────────────────────────
