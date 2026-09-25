@@ -7,6 +7,7 @@ import {
   scheduleEmail,
   cancelEmail,
   rescheduleEmail,
+  searchEmails,
 } from '../controllers/emailController.js';
 import { requireAuth } from '../middleware/authDev.js';
 import { validateRequest } from '../middleware/validate.js';
@@ -16,6 +17,7 @@ import {
   bulkCreateEmailSchema,
   listEmailsQuerySchema,
   rescheduleEmailSchema,
+  searchEmailsQuerySchema,
 } from '../validators/emailValidator.js';
 
 const router = Router();
@@ -23,6 +25,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/', validateRequest({ query: listEmailsQuerySchema }), getEmails);
+router.get('/search', validateRequest({ query: searchEmailsQuerySchema }), searchEmails);
 router.get('/:id', validateRequest({ params: idParamSchema }), getEmailById);
 router.post('/', validateRequest({ body: createEmailSchema }), createEmail);
 router.post('/bulk', validateRequest({ body: bulkCreateEmailSchema }), bulkCreateEmails);

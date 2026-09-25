@@ -47,3 +47,10 @@ export const listEmailsQuerySchema = z.object({
 export const rescheduleEmailSchema = z.object({
   scheduledAt: z.coerce.date({ message: 'Valid ISO scheduledAt timestamp is required' }),
 });
+
+export const searchEmailsQuerySchema = z.object({
+  q: z.string().optional(),
+  status: z.nativeEnum(EmailStatus).optional(),
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+});

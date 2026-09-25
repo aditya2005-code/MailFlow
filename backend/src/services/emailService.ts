@@ -11,6 +11,7 @@ import { NotFoundError, ValidationError, ForbiddenError, ConflictError } from '.
 import { z } from 'zod';
 import { MAX_BULK_EMAIL_BATCH_SIZE } from '../validators/emailValidator.js';
 import { addEmailJob, removeEmailJob } from '../queues/index.js';
+import { elasticsearchService } from './elasticsearchService.js';
 
 const emailAddressSchema = z.string().email();
 
@@ -58,6 +59,11 @@ export const emailService = {
     // Enqueue corresponding BullMQ delayed job after DB record creation
     const delay = Math.max(0, scheduledAtDate.getTime() - Date.now());
     await addEmailJob(createdEmail.id, delay);
+
+    // Index into Elasticsearch (asynchronously, non-blocking)
+    elasticsearchService.indexEmail(createdEmail).catch((err) => {
+      console.error(`[emailService] Non-blocking ES indexing error: ${err.message}`);
+    });
 
     return createdEmail;
   },
@@ -147,6 +153,11 @@ export const emailService = {
         const delay = Math.max(0, new Date(emailItem.scheduledAt).getTime() - Date.now());
         return addEmailJob(emailItem.id, delay);
       }),
+    );
+
+    // Index created bulk emails into Elasticsearch (non-blocking)
+    Promise.all(createdEmails.emails.map((item) => elasticsearchService.indexEmail(item))).catch(
+      (err) => console.error(`[emailService] Non-blocking bulk ES index error: ${err.message}`),
     );
 
     return result;

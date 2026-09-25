@@ -7,6 +7,7 @@ import { env } from '../config/env.js';
 import { emailRepository } from '../repositories/emailRepository.js';
 import { getSmtpTransporter } from '../config/smtp.js';
 import { rateLimitService } from '../services/rateLimitService.js';
+import { elasticsearchService } from '../services/elasticsearchService.js';
 
 let emailWorkerInstance: Worker<EmailJobPayload> | null = null;
 
@@ -136,6 +137,12 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
       { sentAt: new Date() },
     );
 
+    // Update Elasticsearch document (asynchronously, non-blocking)
+    elasticsearchService.updateEmailDocument(emailId, {
+      status: EmailStatus.SENT,
+      sentAt: new Date().toISOString(),
+    }).catch(() => {});
+
     return {
       status: 'sent',
       messageId: info.messageId,
@@ -163,6 +170,13 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
           incrementAttempts: true,
         },
       );
+
+      // Update Elasticsearch document
+      elasticsearchService.updateEmailDocument(emailId, {
+        status: EmailStatus.FAILED,
+        lastError: sanitizedError,
+        attempts: currentAttempt,
+      }).catch(() => {});
     } else {
       console.warn(
         `[worker] 🔄 SMTP delivery failed for email ${emailId} (Attempt ${currentAttempt}/${maxAttempts}). Reverting to SCHEDULED for BullMQ retry... Error: ${sanitizedError}`,
@@ -178,6 +192,13 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
           incrementAttempts: true,
         },
       );
+
+      // Update Elasticsearch document
+      elasticsearchService.updateEmailDocument(emailId, {
+        status: EmailStatus.SCHEDULED,
+        lastError: sanitizedError,
+        attempts: currentAttempt,
+      }).catch(() => {});
     }
 
     // Re-throw error so BullMQ handles configured retries / fails job

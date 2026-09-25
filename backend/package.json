@@ -22,10 +22,12 @@
     "worker:test": "tsx src/utils/test-worker-delivery.ts",
     "reliability:test": "tsx src/utils/test-reliability-idempotency.ts",
     "limiter:test": "tsx src/utils/test-rate-limiter.ts",
+    "reindex": "tsx src/utils/reindex-emails.ts",
     "es:up": "docker compose -f ../docker-compose.yml up -d elasticsearch",
     "es:down": "docker compose -f ../docker-compose.yml down",
     "es:logs": "docker compose -f ../docker-compose.yml logs -f elasticsearch",
     "es:test": "tsx src/utils/test-elasticsearch-connection.ts",
+    "es:search:test": "tsx src/utils/test-elasticsearch-search.ts",
     "services:up": "docker compose -f ../docker-compose.yml up -d",
     "postinstall": "prisma generate"
   },
@@ -39,7 +41,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@elastic/elasticsearch": "^9.5.1",
+    "@elastic/elasticsearch": "^8.19.2",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@types/pg": "^8.23.1",
