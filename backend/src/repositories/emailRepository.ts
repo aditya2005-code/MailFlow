@@ -16,10 +16,20 @@ export interface ListEmailsOptions {
   page?: number;
   limit?: number;
   status?: EmailStatus;
+  campaignId?: string;
+  senderId?: string;
+  recipientEmail?: string;
+  startDate?: Date;
+  endDate?: Date;
+  sortBy?: 'scheduledAt' | 'createdAt' | 'status' | 'recipientEmail';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface PaginatedEmails {
-  emails: Email[];
+  emails: (Email & {
+    campaign?: { id: string; name: string; subject: string };
+    sender?: { id: string; name: string; email: string };
+  })[];
   total: number;
   page: number;
   limit: number;
@@ -27,9 +37,32 @@ export interface PaginatedEmails {
 }
 
 export const emailRepository = {
-  async findById(id: string): Promise<Email | null> {
+  async findById(id: string): Promise<
+    | (Email & {
+        campaign?: { id: string; name: string; subject: string; userId: string };
+        sender?: { id: string; name: string; email: string };
+      })
+    | null
+  > {
     return prisma.email.findUnique({
       where: { id },
+      include: {
+        campaign: {
+          select: {
+            id: true,
+            name: true,
+            subject: true,
+            userId: true,
+          },
+        },
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
   },
 
@@ -38,35 +71,7 @@ export const emailRepository = {
     userId: string,
     options: ListEmailsOptions = {},
   ): Promise<PaginatedEmails> {
-    const page = Math.max(1, options.page ?? 1);
-    const limit = Math.min(100, Math.max(1, options.limit ?? 20));
-    const skip = (page - 1) * limit;
-
-    const where: Prisma.EmailWhereInput = {
-      campaignId,
-      campaign: {
-        userId, // Enforce campaign ownership
-      },
-      ...(options.status ? { status: options.status } : {}),
-    };
-
-    const [emails, total] = await Promise.all([
-      prisma.email.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'asc' },
-      }),
-      prisma.email.count({ where }),
-    ]);
-
-    return {
-      emails,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return this.findByUserId(userId, { ...options, campaignId });
   },
 
   async findByUserId(userId: string, options: ListEmailsOptions = {}): Promise<PaginatedEmails> {
@@ -74,11 +79,28 @@ export const emailRepository = {
     const limit = Math.min(100, Math.max(1, options.limit ?? 20));
     const skip = (page - 1) * limit;
 
+    const allowedSortFields = ['scheduledAt', 'createdAt', 'status', 'recipientEmail'];
+    const sortBy = allowedSortFields.includes(options.sortBy || '') ? options.sortBy! : 'scheduledAt';
+    const sortOrder: Prisma.SortOrder = options.sortOrder === 'desc' ? 'desc' : 'asc';
+
     const where: Prisma.EmailWhereInput = {
       campaign: {
         userId,
       },
       ...(options.status ? { status: options.status } : {}),
+      ...(options.campaignId ? { campaignId: options.campaignId } : {}),
+      ...(options.senderId ? { senderId: options.senderId } : {}),
+      ...(options.recipientEmail
+        ? { recipientEmail: { contains: options.recipientEmail.toLowerCase(), mode: 'insensitive' } }
+        : {}),
+      ...(options.startDate || options.endDate
+        ? {
+            scheduledAt: {
+              ...(options.startDate ? { gte: options.startDate } : {}),
+              ...(options.endDate ? { lte: options.endDate } : {}),
+            },
+          }
+        : {}),
     };
 
     const [emails, total] = await Promise.all([
@@ -86,7 +108,23 @@ export const emailRepository = {
         where,
         skip,
         take: limit,
-        orderBy: { scheduledAt: 'asc' },
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          campaign: {
+            select: {
+              id: true,
+              name: true,
+              subject: true,
+            },
+          },
+          sender: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
       }),
       prisma.email.count({ where }),
     ]);
@@ -96,7 +134,7 @@ export const emailRepository = {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   },
 
@@ -141,14 +179,6 @@ export const emailRepository = {
     });
   },
 
-  /**
-   * Atomic status transition helper.
-   *
-   * Executes a conditional update:
-   * UPDATE emails SET status = newStatus, ... WHERE id = id AND status = currentStatus
-   *
-   * Returns true if the state was transitioned by this call, false if another process claimed/transitioned it.
-   */
   async updateStatusAtomic(
     id: string,
     currentStatus: EmailStatus,
@@ -177,10 +207,6 @@ export const emailRepository = {
     return result.count > 0;
   },
 
-  /**
-   * Efficiently finds emails due for processing ordered by scheduledAt ASC.
-   * Leverages the (status, scheduledAt) composite database index.
-   */
   async findScheduledEmails(batchSize = 50, beforeTime: Date = new Date()): Promise<Email[]> {
     return prisma.email.findMany({
       where: {

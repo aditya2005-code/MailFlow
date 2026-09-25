@@ -1,4 +1,4 @@
-import { Campaign, CampaignStatus } from '@prisma/client';
+import { Campaign, CampaignStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 
 export interface CreateCampaignData {
@@ -22,6 +22,16 @@ export interface ListCampaignsOptions {
   page?: number;
   limit?: number;
   status?: CampaignStatus;
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface CampaignStats {
+  totalEmails: number;
+  scheduledCount: number;
+  processingCount: number;
+  sentCount: number;
+  failedCount: number;
 }
 
 export interface PaginatedCampaigns {
@@ -56,12 +66,43 @@ export const campaignRepository = {
     });
   },
 
+  async getCampaignStats(campaignId: string): Promise<CampaignStats> {
+    const counts = await prisma.email.groupBy({
+      by: ['status'],
+      where: { campaignId },
+      _count: { id: true },
+    });
+
+    const stats: CampaignStats = {
+      totalEmails: 0,
+      scheduledCount: 0,
+      processingCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+    };
+
+    for (const group of counts) {
+      const count = group._count.id;
+      stats.totalEmails += count;
+      if (group.status === 'SCHEDULED') stats.scheduledCount = count;
+      else if (group.status === 'PROCESSING') stats.processingCount = count;
+      else if (group.status === 'SENT') stats.sentCount = count;
+      else if (group.status === 'FAILED') stats.failedCount = count;
+    }
+
+    return stats;
+  },
+
   async findByUserId(userId: string, options: ListCampaignsOptions = {}): Promise<PaginatedCampaigns> {
     const page = Math.max(1, options.page ?? 1);
     const limit = Math.min(100, Math.max(1, options.limit ?? 20));
     const skip = (page - 1) * limit;
 
-    const where = {
+    const allowedSortFields = ['createdAt', 'updatedAt', 'name', 'status'];
+    const sortBy = allowedSortFields.includes(options.sortBy || '') ? options.sortBy! : 'createdAt';
+    const sortOrder: Prisma.SortOrder = options.sortOrder === 'asc' ? 'asc' : 'desc';
+
+    const where: Prisma.CampaignWhereInput = {
       userId,
       ...(options.status ? { status: options.status } : {}),
     };
@@ -71,7 +112,7 @@ export const campaignRepository = {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortBy]: sortOrder },
         include: {
           sender: {
             select: {
@@ -95,7 +136,7 @@ export const campaignRepository = {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   },
 
