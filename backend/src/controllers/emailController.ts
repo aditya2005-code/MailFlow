@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { emailService } from '../services/emailService.js';
+import { schedulerService } from '../services/schedulerService.js';
 import { ApiResponse } from '../types/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { EmailStatus } from '@prisma/client';
@@ -76,4 +77,38 @@ export const bulkCreateEmails = asyncHandler(async (req: Request, res: Response)
     }`.trim(),
   };
   res.status(201).json(body);
+});
+
+export const scheduleEmail = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const result = await schedulerService.scheduleEmail(req.userId!, id);
+  const body: ApiResponse = {
+    success: true,
+    data: result,
+    message: 'Email scheduled successfully into BullMQ queue',
+  };
+  res.status(200).json(body);
+});
+
+export const cancelEmail = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const result = await schedulerService.cancelEmail(req.userId!, id);
+  const body: ApiResponse = {
+    success: true,
+    data: result,
+    message: 'Scheduled email cancelled and removed from queue',
+  };
+  res.status(200).json(body);
+});
+
+export const rescheduleEmail = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const { scheduledAt } = req.body;
+  const result = await schedulerService.rescheduleEmail(req.userId!, id, new Date(scheduledAt));
+  const body: ApiResponse = {
+    success: true,
+    data: result,
+    message: 'Email rescheduled successfully',
+  };
+  res.status(200).json(body);
 });

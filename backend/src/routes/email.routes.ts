@@ -4,6 +4,9 @@ import {
   getEmailById,
   createEmail,
   bulkCreateEmails,
+  scheduleEmail,
+  cancelEmail,
+  rescheduleEmail,
 } from '../controllers/emailController.js';
 import { requireAuth } from '../middleware/authDev.js';
 import { validateRequest } from '../middleware/validate.js';
@@ -12,6 +15,7 @@ import {
   createEmailSchema,
   bulkCreateEmailSchema,
   listEmailsQuerySchema,
+  rescheduleEmailSchema,
 } from '../validators/emailValidator.js';
 
 const router = Router();
@@ -22,5 +26,14 @@ router.get('/', validateRequest({ query: listEmailsQuerySchema }), getEmails);
 router.get('/:id', validateRequest({ params: idParamSchema }), getEmailById);
 router.post('/', validateRequest({ body: createEmailSchema }), createEmail);
 router.post('/bulk', validateRequest({ body: bulkCreateEmailSchema }), bulkCreateEmails);
+
+// ─── Scheduler Endpoints (Phase 3.2) ───────────────────────────────────────────
+router.post('/:id/schedule', validateRequest({ params: idParamSchema }), scheduleEmail);
+router.post('/:id/cancel', validateRequest({ params: idParamSchema }), cancelEmail);
+router.post(
+  '/:id/reschedule',
+  validateRequest({ params: idParamSchema, body: rescheduleEmailSchema }),
+  rescheduleEmail,
+);
 
 export default router;

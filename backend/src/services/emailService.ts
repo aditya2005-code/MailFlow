@@ -10,6 +10,7 @@ import { prisma } from '../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError, ConflictError } from '../errors/appErrors.js';
 import { z } from 'zod';
 import { MAX_BULK_EMAIL_BATCH_SIZE } from '../validators/emailValidator.js';
+import { addEmailJob, removeEmailJob } from '../queues/index.js';
 
 const emailAddressSchema = z.string().email();
 
@@ -43,7 +44,7 @@ export const emailService = {
       throw new ValidationError('A valid scheduledAt date is required.');
     }
 
-    return emailRepository.create({
+    const createdEmail = await emailRepository.create({
       campaignId,
       senderId: campaign.senderId,
       recipientEmail: data.recipientEmail.toLowerCase(),
@@ -53,12 +54,18 @@ export const emailService = {
       scheduledAt: scheduledAtDate,
       status: EmailStatus.SCHEDULED,
     });
+
+    // Enqueue corresponding BullMQ delayed job after DB record creation
+    const delay = Math.max(0, scheduledAtDate.getTime() - Date.now());
+    await addEmailJob(createdEmail.id, delay);
+
+    return createdEmail;
   },
 
   /**
    * Bulk creates recipient email records for a campaign within a Prisma transaction.
    * Enforces a maximum batch limit of 500 per request, deduplicates within the batch,
-   * and updates the campaign status to SCHEDULED atomically.
+   * updates the campaign status to SCHEDULED atomically, and enqueues BullMQ delayed jobs.
    */
   async bulkCreateEmails(
     userId: string,
@@ -116,7 +123,7 @@ export const emailService = {
     }));
 
     // Transactionally create emails and set campaign status to SCHEDULED
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const batchPayload = await emailRepository.createMany(emailRecords, tx);
 
       await tx.campaign.update({
@@ -129,6 +136,20 @@ export const emailService = {
         duplicatesSkipped,
       };
     });
+
+    // Enqueue delayed BullMQ jobs for all created email records
+    const createdEmails = await emailRepository.findByCampaignId(campaignId, userId, {
+      limit: MAX_BULK_EMAIL_BATCH_SIZE,
+    });
+
+    await Promise.all(
+      createdEmails.emails.map((emailItem) => {
+        const delay = Math.max(0, new Date(emailItem.scheduledAt).getTime() - Date.now());
+        return addEmailJob(emailItem.id, delay);
+      }),
+    );
+
+    return result;
   },
 
   async getEmailsByCampaign(
@@ -173,7 +194,7 @@ export const emailService = {
       );
     }
 
-    // Delete or transition scheduled email record safely
+    // Safely update DB record
     return emailRepository.update(emailId, {
       status: EmailStatus.FAILED,
       lastError: 'Cancelled by user prior to sending.',

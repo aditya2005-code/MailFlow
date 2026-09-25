@@ -17,6 +17,7 @@
     "redis:logs": "docker compose -f ../docker-compose.yml logs -f redis",
     "redis:test": "tsx src/utils/test-redis-connection.ts",
     "queue:test": "tsx src/utils/test-email-queue.ts",
+    "scheduler:test": "tsx src/utils/test-scheduler-service.ts",
     "es:up": "docker compose -f ../docker-compose.yml up -d elasticsearch",
     "es:down": "docker compose -f ../docker-compose.yml down",
     "es:logs": "docker compose -f ../docker-compose.yml logs -f elasticsearch",

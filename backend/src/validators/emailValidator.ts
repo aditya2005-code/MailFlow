@@ -43,3 +43,7 @@ export const listEmailsQuerySchema = z.object({
   sortBy: z.enum(['scheduledAt', 'createdAt', 'status', 'recipientEmail']).optional().default('scheduledAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 });
+
+export const rescheduleEmailSchema = z.object({
+  scheduledAt: z.coerce.date({ message: 'Valid ISO scheduledAt timestamp is required' }),
+});

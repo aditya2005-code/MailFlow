@@ -6,8 +6,8 @@ export interface CreateEmailData {
   senderId: string;
   recipientEmail: string;
   recipientName?: string;
-  subject: string;
-  body: string;
+  subject?: string;
+  body?: string;
   scheduledAt: Date;
   status?: EmailStatus;
 }
@@ -145,8 +145,8 @@ export const emailRepository = {
         senderId: data.senderId,
         recipientEmail: data.recipientEmail,
         recipientName: data.recipientName ?? null,
-        subject: data.subject,
-        body: data.body,
+        subject: data.subject ?? '',
+        body: data.body ?? '',
         scheduledAt: data.scheduledAt,
         status: data.status ?? EmailStatus.SCHEDULED,
       },
@@ -164,8 +164,8 @@ export const emailRepository = {
         senderId: item.senderId,
         recipientEmail: item.recipientEmail,
         recipientName: item.recipientName ?? null,
-        subject: item.subject,
-        body: item.body,
+        subject: item.subject ?? '',
+        body: item.body ?? '',
         scheduledAt: item.scheduledAt,
         status: item.status ?? EmailStatus.SCHEDULED,
       })),
