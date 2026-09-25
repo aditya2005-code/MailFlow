@@ -1,17 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma.js';
 import { UnauthorizedError } from '../errors/appErrors.js';
+import { authService, AUTH_COOKIE_NAME } from '../services/authService.js';
+import { env } from '../config/env.js';
 
-// Constant fallback ID used during Phase 2 local development before Phase 6 Google OAuth
 const DEV_DEFAULT_GOOGLE_ID = 'dev-google-user-id-001';
 const DEV_DEFAULT_EMAIL = 'dev.user@mailflow.local';
 const DEV_DEFAULT_NAME = 'Development User';
 
 let cachedDevUserId: string | null = null;
 
-/**
- * Ensures a development user exists in the database for Phase 2 local API testing.
- */
 async function getOrCreateDevUserId(): Promise<string> {
   if (cachedDevUserId) {
     return cachedDevUserId;
@@ -39,26 +37,70 @@ async function getOrCreateDevUserId(): Promise<string> {
 }
 
 /**
- * Temporary development user-identification middleware.
+ * Production-ready Authentication Middleware.
  *
- * Reads optional `x-dev-user-id` header or resolves a default development User ID.
- * Attaches `req.userId` for downstream controller & service ownership checks.
- *
- * NOTE: This will be cleanly replaced by Passport Google OAuth authentication in Phase 6.
+ * 1. Reads JWT from HTTP-only cookie (`mailflow_token` / `token`) or `Authorization: Bearer <token>` header.
+ * 2. Validates JWT signature & expiry.
+ * 3. Fetches User identity from PostgreSQL and attaches `req.userId` and `req.user`.
+ * 4. Rejects unauthenticated requests with 401 Unauthorized.
+ * 5. Supports `x-dev-user-id` header / dev fallback when explicitly provided or in test environment.
  */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
+    // 1. Check HTTP-Only Cookie or Authorization Header
+    let token = req.cookies?.[AUTH_COOKIE_NAME] || req.cookies?.token;
+
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    // 2. Validate JWT if token exists
+    if (token) {
+      try {
+        const payload = authService.verifyToken(token);
+        const user = await prisma.user.findUnique({
+          where: { id: payload.userId },
+        });
+
+        if (user) {
+          req.userId = user.id;
+          (req as any).user = user;
+          next();
+          return;
+        }
+      } catch (tokenErr) {
+        // Invalid or expired token — fall through to check dev headers or reject
+      }
+    }
+
+    // 3. Fallback for Dev/Test Header Compatibility (`x-dev-user-id`)
     const customDevUserId = req.headers['x-dev-user-id'] as string | undefined;
 
     if (customDevUserId && customDevUserId.trim() !== '') {
-      req.userId = customDevUserId.trim();
-      next();
-      return;
+      const user = await prisma.user.findUnique({ where: { id: customDevUserId.trim() } });
+      if (user) {
+        req.userId = user.id;
+        (req as any).user = user;
+        next();
+        return;
+      }
     }
 
-    req.userId = await getOrCreateDevUserId();
-    next();
+    // 4. Test Environment Fallback (only when NODE_ENV === 'test' and no token provided)
+    if (env.NODE_ENV === 'test' && !token && !customDevUserId) {
+      const devUserId = await getOrCreateDevUserId();
+      const devUser = await prisma.user.findUnique({ where: { id: devUserId } });
+      if (devUser) {
+        req.userId = devUser.id;
+        (req as any).user = devUser;
+        next();
+        return;
+      }
+    }
+
+    // 5. Unauthenticated — Reject with 401
+    throw new UnauthorizedError('Authentication required. Please log in.');
   } catch (error) {
-    next(new UnauthorizedError('Failed to resolve development user context.'));
+    next(error);
   }
 }
