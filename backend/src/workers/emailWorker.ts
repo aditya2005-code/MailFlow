@@ -10,15 +10,37 @@ import { getSmtpTransporter } from '../config/smtp.js';
 let emailWorkerInstance: Worker<EmailJobPayload> | null = null;
 
 /**
+ * ====================================================================================
+ * EXACTLY-ONCE EMAIL DELIVERY LIMITATION NOTICE & ARCHITECTURAL IDEMPOTENCY DESIGN
+ * ====================================================================================
+ *
+ * True exactly-once email delivery cannot be guaranteed with ordinary SMTP protocols.
+ * There is a theoretical failure window where the remote SMTP server accepts the email,
+ * but the worker process crashes (e.g. SIGKILL, power failure) before updating the PostgreSQL
+ * database state from 'PROCESSING' to 'SENT'.
+ *
+ * MailFlow addresses this by providing strong application-level idempotency:
+ * 1. Queue-level idempotency: BullMQ job ID matches PostgreSQL primary key (jobId = email.id).
+ * 2. Database-level atomic claim: Conditional UPDATE (WHERE id = emailId AND status = SCHEDULED).
+ * 3. Pre-send status checks: Safe skipping of emails already in 'SENT' or 'FAILED' state.
+ * 4. Stalled-job recovery: Controlled re-execution via BullMQ stalled-job lock management.
+ * ====================================================================================
+ */
+
+/**
  * Core processor for email sending jobs.
  *
- * Implements strict atomic status claim (SCHEDULED -> PROCESSING) to prevent double-sending
- * in multi-worker environments, delivers email via Nodemailer Ethereal SMTP, and updates PostgreSQL
- * to SENT status with current UTC timestamp.
+ * Handles atomic status transitions, Nodemailer SMTP delivery, sanitized error tracking,
+ * and BullMQ retry integration.
  */
 export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
   const { emailId } = job.data;
-  console.log(`[worker] Processing job ${job.id} for emailId: ${emailId}`);
+  const currentAttempt = (job.attemptsMade || 0) + 1;
+  const maxAttempts = job.opts?.attempts || 3;
+
+  console.log(
+    `[worker] 📥 Job ${job.id} started for emailId: ${emailId} (Attempt ${currentAttempt}/${maxAttempts})`,
+  );
 
   // 1. Retrieve Email record from PostgreSQL (source of truth)
   const email = await emailRepository.findById(emailId);
@@ -29,35 +51,42 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     throw new Error(errorMsg);
   }
 
-  // 2. Idempotency Check — Skip if already sent
+  // 2. Idempotency Check — Skip if already SENT
   if (email.status === EmailStatus.SENT) {
     console.log(`[worker] ℹ️ Email ${emailId} is already marked SENT. Skipping duplicate execution.`);
     return { status: 'skipped', reason: 'already_sent' };
   }
 
-  // 3. Status Handling & Atomic Claim — Transition SCHEDULED -> PROCESSING
-  if (email.status === EmailStatus.PROCESSING) {
+  // 3. Skip if already FAILED (and not being manually re-scheduled)
+  if (email.status === EmailStatus.FAILED && currentAttempt === 1) {
+    console.log(`[worker] ℹ️ Email ${emailId} is marked FAILED. Skipping execution.`);
+    return { status: 'skipped', reason: 'already_failed' };
+  }
+
+  // 4. Atomic Status Transition (SCHEDULED -> PROCESSING)
+  // If email is currently PROCESSING:
+  // Allow processing ONLY IF this is a BullMQ retry/stalled recovery (currentAttempt > 1).
+  // If currentAttempt === 1 and status is PROCESSING, another active worker claimed it.
+  if (email.status === EmailStatus.PROCESSING && currentAttempt === 1) {
     console.warn(`[worker] ⚠️ Email ${emailId} is currently being processed by another worker. Skipping.`);
     return { status: 'skipped', reason: 'already_processing' };
   }
 
-  if (email.status !== EmailStatus.SCHEDULED) {
-    console.warn(`[worker] ⚠️ Email ${emailId} has status '${email.status}', which is not SCHEDULED. Skipping.`);
-    return { status: 'skipped', reason: 'invalid_status' };
+  if (email.status === EmailStatus.SCHEDULED) {
+    const claimed = await emailRepository.updateStatusAtomic(
+      emailId,
+      EmailStatus.SCHEDULED,
+      EmailStatus.PROCESSING,
+    );
+
+    if (!claimed) {
+      console.warn(`[worker] ⚠️ Email ${emailId} could not be claimed atomically. Skipping.`);
+      return { status: 'skipped', reason: 'claim_failed' };
+    }
+    console.log(`[worker] 🔒 Email ${emailId} claimed atomically (SCHEDULED -> PROCESSING)`);
   }
 
-  const claimed = await emailRepository.updateStatusAtomic(
-    emailId,
-    EmailStatus.SCHEDULED,
-    EmailStatus.PROCESSING,
-  );
-
-  if (!claimed) {
-    console.warn(`[worker] ⚠️ Email ${emailId} could not be claimed (already claimed by another worker). Skipping.`);
-    return { status: 'skipped', reason: 'claim_failed' };
-  }
-
-  // 4. Send Email via Nodemailer Ethereal SMTP
+  // 5. Send Email via Nodemailer SMTP
   try {
     const transporter = getSmtpTransporter();
 
@@ -76,9 +105,11 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     });
 
     const previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
-    console.log(`[worker] ✅ SMTP accepted message ${info.messageId}. Preview URL: ${previewUrl || 'N/A'}`);
+    console.log(
+      `[worker] ✅ SMTP accepted message ${info.messageId} for email ${emailId}. Preview URL: ${previewUrl || 'N/A'}`,
+    );
 
-    // 5. Update PostgreSQL state: PROCESSING -> SENT
+    // 6. Update PostgreSQL state: PROCESSING -> SENT
     await emailRepository.updateStatusAtomic(
       emailId,
       EmailStatus.PROCESSING,
@@ -94,22 +125,43 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const sanitizedError = errorMessage.replace(/(pass|password|secret|auth)=[^&\s]+/gi, '$1=***');
+    const sanitizedError = errorMessage.replace(/(pass|password|secret|auth|key)=[^&\s]+/gi, '$1=***');
 
-    console.error(`[worker] ❌ SMTP sending failed for email ${emailId}: ${sanitizedError}`);
+    const isFinalAttempt = currentAttempt >= maxAttempts;
 
-    // Record error in PostgreSQL database
-    await emailRepository.updateStatusAtomic(
-      emailId,
-      EmailStatus.PROCESSING,
-      EmailStatus.FAILED,
-      {
-        lastError: sanitizedError,
-        incrementAttempts: true,
-      },
-    );
+    if (isFinalAttempt) {
+      console.error(
+        `[worker] 💀 Email ${emailId} failed final attempt (${currentAttempt}/${maxAttempts}). Marking as FAILED. Error: ${sanitizedError}`,
+      );
 
-    // Re-throw error so BullMQ handles configured retries
+      // Transition to FAILED in PostgreSQL on final retry failure
+      await emailRepository.updateStatusAtomic(
+        emailId,
+        EmailStatus.PROCESSING,
+        EmailStatus.FAILED,
+        {
+          lastError: sanitizedError,
+          incrementAttempts: true,
+        },
+      );
+    } else {
+      console.warn(
+        `[worker] 🔄 SMTP delivery failed for email ${emailId} (Attempt ${currentAttempt}/${maxAttempts}). Reverting to SCHEDULED for BullMQ retry... Error: ${sanitizedError}`,
+      );
+
+      // Revert status from PROCESSING to SCHEDULED so next BullMQ retry can claim it atomically
+      await emailRepository.updateStatusAtomic(
+        emailId,
+        EmailStatus.PROCESSING,
+        EmailStatus.SCHEDULED,
+        {
+          lastError: sanitizedError,
+          incrementAttempts: true,
+        },
+      );
+    }
+
+    // Re-throw error so BullMQ handles configured retries / fails job
     throw new Error(`SMTP sending failed: ${sanitizedError}`);
   }
 }
@@ -124,10 +176,13 @@ export function getEmailWorker(): Worker<EmailJobPayload> {
     emailWorkerInstance = new Worker<EmailJobPayload>(EMAIL_QUEUE_NAME, processEmailJob, {
       connection: redisOptions as any,
       concurrency,
+      lockDuration: 30000,    // 30 seconds lock duration for active job processing
+      stalledInterval: 30000, // Check for stalled jobs every 30 seconds
+      maxStalledCount: 2,     // Recover stalled jobs up to 2 times before failing
     });
 
     emailWorkerInstance.on('completed', (job, result) => {
-      console.log(`[worker] 🎉 Job ${job.id} completed!`, result);
+      console.log(`[worker] 🎉 Job ${job.id} completed successfully!`, result);
     });
 
     emailWorkerInstance.on('failed', (job, err) => {
@@ -138,7 +193,7 @@ export function getEmailWorker(): Worker<EmailJobPayload> {
       console.error('[worker] Worker instance error:', err.message);
     });
 
-    console.log(`[worker] 🚀 Email worker initialized with concurrency=${concurrency}`);
+    console.log(`[worker] 🚀 Email worker initialized (concurrency=${concurrency}, lockDuration=30s, stalledInterval=30s)`);
   }
 
   return emailWorkerInstance;
