@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { env } from '../config/env.js';
 import { HttpError, ApiResponse } from '../types/index.js';
+import { Prisma } from '@prisma/client';
 
 /**
- * Central error-handling middleware.
+ * Centralized Express error-handling middleware.
  * Must be registered LAST (after all routes) in app.ts.
- * Express recognises it as an error handler because it has 4 parameters.
  */
 export function errorHandler(
   err: unknown,
@@ -14,38 +14,74 @@ export function errorHandler(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction,
 ): void {
-  // --- Typed HTTP errors we throw intentionally ---------------------------------
+  // ─── Typed Application HTTP Errors ─────────────────────────────────────────
   if (err instanceof HttpError) {
     const body: ApiResponse = {
       success: false,
-      error: err.message,
-      ...(err.code ? { message: err.code } : {}),
+      error: {
+        code: err.code,
+        message: err.message,
+      },
     };
     res.status(err.statusCode).json(body);
     return;
   }
 
-  // --- Unknown / unhandled errors -----------------------------------------------
-  const isDev = env.NODE_ENV === 'development';
+  // ─── Prisma Database Errors ────────────────────────────────────────────────
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      const target = Array.isArray(err.meta?.target) ? err.meta.target.join(', ') : 'field';
+      const body: ApiResponse = {
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: `A record with this ${target} already exists.`,
+        },
+      };
+      res.status(409).json(body);
+      return;
+    }
 
-  // Log to stderr so it shows up in container logs
+    if (err.code === 'P2025') {
+      const body: ApiResponse = {
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'The requested database record was not found.',
+        },
+      };
+      res.status(404).json(body);
+      return;
+    }
+  }
+
+  // ─── Unhandled / Internal Server Errors ────────────────────────────────────
+  const isDev = env.NODE_ENV === 'development';
   console.error('[ErrorHandler]', err);
+
+  const errorMessage = isDev && err instanceof Error ? err.message : 'Internal server error';
 
   const body: ApiResponse = {
     success: false,
-    error: isDev && err instanceof Error ? err.message : 'Internal server error',
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: errorMessage,
+    },
   };
 
   res.status(500).json(body);
 }
 
 /**
- * 404 catch-all — must be registered BEFORE errorHandler but AFTER all routes.
+ * 404 catch-all middleware — registered BEFORE errorHandler but AFTER all routes.
  */
 export function notFoundHandler(req: Request, res: Response): void {
   const body: ApiResponse = {
     success: false,
-    error: `Route not found: ${req.method} ${req.path}`,
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route not found: ${req.method} ${req.path}`,
+    },
   };
   res.status(404).json(body);
 }
