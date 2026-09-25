@@ -103,6 +103,9 @@ async function testRepositoryAndServiceLayer() {
     const emailsPage = await emailService.getEmailsByCampaign(user1.id, campaign1.id);
     console.log(`   ✅ Retrieved ${emailsPage.emails.length} queued emails for Campaign 1.`);
     const targetEmail = emailsPage.emails[0];
+    if (!targetEmail) {
+      throw new Error('No target email found for processing test');
+    }
 
     // 5. Atomic State Transition Verification
     console.log('\n5. Testing Atomic Email Worker Claiming...');
@@ -123,7 +126,7 @@ async function testRepositoryAndServiceLayer() {
     const slackConn = await slackConnectionService.createOrUpdateConnection(user1.id, {
       teamId: 'T12345678',
       teamName: 'Acme Corp Workspace',
-      webhookUrl: 'https://hooks.slack.com/services/T00/B00/XXXXX',
+      webhookUrl: 'https://example.com/test-webhook',
     });
     console.log(`   ✅ SlackConnection created for User 1: ${slackConn.id}`);
 

@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 
 import { env } from './config/env.js';
+import healthRouter from './routes/health.js';
 import apiRouter from './routes/index.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
@@ -25,7 +26,7 @@ export function createApp(): Application {
       origin: env.FRONTEND_URL,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-dev-user-id'],
     }),
   );
 
@@ -36,6 +37,9 @@ export function createApp(): Application {
   // ─── HTTP Request Logging ────────────────────────────────────────────────────
   const morganFormat = env.NODE_ENV === 'production' ? 'combined' : 'dev';
   app.use(morgan(morganFormat));
+
+  // ─── Direct Health Check Shortcut ────────────────────────────────────────────
+  app.use('/health', healthRouter);
 
   // ─── API Routes ───────────────────────────────────────────────────────────────
   app.use('/api/v1', apiRouter);
