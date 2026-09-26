@@ -1,37 +1,39 @@
-import { Client } from '@elastic/elasticsearch';
+import { Client } from '@opensearch-project/opensearch';
 import { env } from './env.js';
 
-if (!env.ELASTICSEARCH_URL) {
-  throw new Error('[elasticsearch] ELASTICSEARCH_URL environment variable is required.');
-}
-
-let elasticsearchClientInstance: Client | null = null;
+let openSearchClientInstance: Client | null = null;
 
 /**
- * Get or initialize a singleton Elasticsearch client instance.
+ * Get or initialize a singleton OpenSearch client instance.
+ * Supports Aiven OpenSearch (HTTPS / service URI / basic auth) & local Docker OpenSearch/Elasticsearch (http://localhost:9200).
  */
-export function getElasticsearchClient(): Client {
-  if (!elasticsearchClientInstance) {
-    if (!env.ELASTICSEARCH_URL) {
-      throw new Error('[elasticsearch] ELASTICSEARCH_URL is not configured.');
-    }
+export function getOpenSearchClient(): Client {
+  if (!openSearchClientInstance) {
+    const nodeUrl = env.OPENSEARCH_URL || env.ELASTICSEARCH_URL || 'http://localhost:9200';
 
-    elasticsearchClientInstance = new Client({
-      node: env.ELASTICSEARCH_URL,
+    const clientConfig: any = {
+      node: nodeUrl,
       requestTimeout: 10000,
       maxRetries: 3,
-    });
+    };
+
+    if (env.OPENSEARCH_USERNAME && env.OPENSEARCH_PASSWORD) {
+      clientConfig.auth = {
+        username: env.OPENSEARCH_USERNAME,
+        password: env.OPENSEARCH_PASSWORD,
+      };
+    }
+
+    openSearchClientInstance = new Client(clientConfig);
   }
 
-  return elasticsearchClientInstance;
+  return openSearchClientInstance;
 }
 
-/**
- * Exported singleton client instance for convenient application imports.
- */
-export const elasticsearchClient = getElasticsearchClient();
+// Backwards-compatibility aliases for existing codebase
+export const getElasticsearchClient = getOpenSearchClient;
 
-export interface ElasticsearchHealthResult {
+export interface OpenSearchHealthResult {
   status: 'up' | 'down';
   version?: string;
   clusterName?: string;
@@ -39,34 +41,40 @@ export interface ElasticsearchHealthResult {
   error?: string;
 }
 
+export type ElasticsearchHealthResult = OpenSearchHealthResult;
+
 /**
- * Lightweight connectivity check for Elasticsearch reachability verification.
+ * Lightweight connectivity check for OpenSearch reachability verification.
  */
-export async function checkElasticsearchHealth(timeoutMs = 5000): Promise<ElasticsearchHealthResult> {
-  const client = getElasticsearchClient();
+export async function checkOpenSearchHealth(timeoutMs = 5000): Promise<OpenSearchHealthResult> {
+  const client = getOpenSearchClient();
   const startTime = Date.now();
   let timerId: NodeJS.Timeout | undefined;
 
   try {
     const infoPromise = client.info();
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timerId = setTimeout(() => reject(new Error('Elasticsearch ping timed out')), timeoutMs);
+      timerId = setTimeout(() => reject(new Error('OpenSearch ping timed out')), timeoutMs);
     });
 
-    const info = await Promise.race([infoPromise, timeoutPromise]);
+    const res = await Promise.race([infoPromise, timeoutPromise]);
+    const body = (res as any).body || res;
+    const versionNumber = body?.version?.number || '3.6';
+    const clusterName = body?.cluster_name || 'opensearch';
     const latencyMs = Date.now() - startTime;
 
     return {
       status: 'up',
-      version: info.version.number,
-      clusterName: info.cluster_name,
+      version: versionNumber,
+      clusterName,
       latencyMs,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const sanitizedError = errorMessage.replace(/https?:\/\/[^@]+@/gi, 'https://***@');
     return {
       status: 'down',
-      error: errorMessage.includes('timed out') ? 'Elasticsearch ping timed out' : 'Elasticsearch connection failed',
+      error: sanitizedError.includes('timed out') ? 'OpenSearch ping timed out' : 'OpenSearch connection failed',
     };
   } finally {
     if (timerId) {
@@ -75,12 +83,16 @@ export async function checkElasticsearchHealth(timeoutMs = 5000): Promise<Elasti
   }
 }
 
+export const checkElasticsearchHealth = checkOpenSearchHealth;
+
 /**
- * Close Elasticsearch client connection gracefully.
+ * Close OpenSearch client connection gracefully.
  */
-export async function closeElasticsearchClient(): Promise<void> {
-  if (elasticsearchClientInstance) {
-    await elasticsearchClientInstance.close();
-    elasticsearchClientInstance = null;
+export async function closeOpenSearchClient(): Promise<void> {
+  if (openSearchClientInstance) {
+    await openSearchClientInstance.close();
+    openSearchClientInstance = null;
   }
 }
+
+export const closeElasticsearchClient = closeOpenSearchClient;

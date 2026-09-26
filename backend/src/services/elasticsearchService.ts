@@ -1,9 +1,10 @@
-import { getElasticsearchClient } from '../config/elasticsearch.js';
+import { getOpenSearchClient } from '../config/elasticsearch.js';
 import { emailRepository } from '../repositories/emailRepository.js';
 import { prisma } from '../config/prisma.js';
 import { Email, EmailStatus } from '@prisma/client';
 
 export const ELASTICSEARCH_EMAIL_INDEX = 'mailflow-emails';
+export const OPENSEARCH_EMAIL_INDEX = ELASTICSEARCH_EMAIL_INDEX;
 
 export interface IndexedEmailDocument {
   id: string;
@@ -40,7 +41,7 @@ export interface SearchEmailsResult {
 }
 
 /**
- * Elasticsearch explicit index mapping definition for mailflow-emails.
+ * OpenSearch / Elasticsearch explicit index mapping definition for mailflow-emails.
  */
 const EMAIL_INDEX_MAPPING = {
   mappings: {
@@ -71,28 +72,31 @@ const EMAIL_INDEX_MAPPING = {
 
 export const elasticsearchService = {
   /**
-   * Ensures the mailflow-emails index exists in Elasticsearch with explicit mapping.
+   * Ensures the mailflow-emails index exists in OpenSearch with explicit mapping.
    * Safe to call on startup — will NOT overwrite or recreate existing indices.
    */
   async ensureEmailIndex(): Promise<void> {
     try {
-      const client = getElasticsearchClient();
-      const exists = await client.indices.exists({ index: ELASTICSEARCH_EMAIL_INDEX });
+      const client = getOpenSearchClient();
+      const existsRes = await client.indices.exists({ index: ELASTICSEARCH_EMAIL_INDEX });
+      const exists = typeof existsRes === 'boolean' ? existsRes : (existsRes as any).body ?? existsRes;
 
       if (!exists) {
         await client.indices.create({
           index: ELASTICSEARCH_EMAIL_INDEX,
-          mappings: EMAIL_INDEX_MAPPING.mappings as any,
+          body: {
+            mappings: EMAIL_INDEX_MAPPING.mappings as any,
+          },
         });
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[elasticsearch] Failed to ensure index '${ELASTICSEARCH_EMAIL_INDEX}': ${msg}`);
+      console.error(`[opensearch] Failed to ensure index '${ELASTICSEARCH_EMAIL_INDEX}': ${msg}`);
     }
   },
 
   /**
-   * Transforms a PostgreSQL Email record into an Elasticsearch IndexedEmailDocument.
+   * Transforms a PostgreSQL Email record into an IndexedEmailDocument.
    */
   async formatEmailDocument(email: any): Promise<IndexedEmailDocument | null> {
     let fullEmail = email;
@@ -102,7 +106,7 @@ export const elasticsearchService = {
     }
 
     if (!fullEmail || !fullEmail.campaign?.userId) {
-      console.warn(`[elasticsearch] Cannot index email ${email.id}: Missing associated campaign/user relationship.`);
+      console.warn(`[opensearch] Cannot index email ${email.id}: Missing associated campaign/user relationship.`);
       return null;
     }
 
@@ -126,9 +130,8 @@ export const elasticsearchService = {
   },
 
   /**
-   * Indexes or replaces an Email document in Elasticsearch using email.id as document ID.
-   *
-   * PostgreSQL remains source of truth; Elasticsearch failure will not throw or break callers.
+   * Indexes or replaces an Email document in OpenSearch using email.id as document ID.
+   * PostgreSQL remains source of truth; OpenSearch failure will not throw or break callers.
    */
   async indexEmail(emailOrId: Email | string): Promise<void> {
     try {
@@ -148,35 +151,37 @@ export const elasticsearchService = {
         return;
       }
 
-      const client = getElasticsearchClient();
+      const client = getOpenSearchClient();
       await client.index({
         index: ELASTICSEARCH_EMAIL_INDEX,
         id: emailDoc.id,
-        document: emailDoc,
+        body: emailDoc,
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[elasticsearch] Failed to index email: ${msg}`);
+      console.error(`[opensearch] Failed to index email: ${msg}`);
     }
   },
 
   /**
-   * Partially updates an existing Email document in Elasticsearch.
+   * Partially updates an existing Email document in OpenSearch.
    */
   async updateEmailDocument(id: string, partialDoc: Record<string, any>): Promise<void> {
     try {
-      const client = getElasticsearchClient();
+      const client = getOpenSearchClient();
       await client.update({
         index: ELASTICSEARCH_EMAIL_INDEX,
         id,
-        doc: {
-          ...partialDoc,
-          updatedAt: new Date().toISOString(),
+        body: {
+          doc: {
+            ...partialDoc,
+            updatedAt: new Date().toISOString(),
+          },
         },
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[elasticsearch] Failed to update document ${id}: ${msg}`);
+      console.error(`[opensearch] Failed to update document ${id}: ${msg}`);
     }
   },
 
@@ -210,24 +215,27 @@ export const elasticsearchService = {
     }
 
     try {
-      const client = getElasticsearchClient();
-      const response = await client.search<IndexedEmailDocument>({
+      const client = getOpenSearchClient();
+      const response = await client.search({
         index: ELASTICSEARCH_EMAIL_INDEX,
         from,
         size: limit,
-        query: {
-          bool: {
-            must,
+        body: {
+          query: {
+            bool: {
+              must,
+            },
           },
+          sort: [{ scheduledAt: { order: 'desc' } }, { createdAt: { order: 'desc' } }],
         },
-        sort: [{ scheduledAt: { order: 'desc' } }, { createdAt: { order: 'desc' } }],
       });
 
-      const hits = response.hits.hits.map((hit) => hit._source as IndexedEmailDocument);
+      const resBody = (response as any).body || response;
+      const hits = (resBody.hits?.hits || []).map((hit: any) => hit._source as IndexedEmailDocument);
       const totalNum =
-        typeof response.hits.total === 'number'
-          ? response.hits.total
-          : response.hits.total?.value || 0;
+        typeof resBody.hits?.total === 'number'
+          ? resBody.hits.total
+          : resBody.hits?.total?.value || 0;
 
       return {
         results: hits,
@@ -238,7 +246,7 @@ export const elasticsearchService = {
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[elasticsearch] Search query failed: ${msg}`);
+      console.error(`[opensearch] Search query failed: ${msg}`);
       return {
         results: [],
         total: 0,
@@ -250,7 +258,7 @@ export const elasticsearchService = {
   },
 
   /**
-   * Reindexes all emails from PostgreSQL into Elasticsearch.
+   * Reindexes all emails from PostgreSQL into OpenSearch.
    * Useful for initialization, environment reset, or recovery.
    */
   async reindexAllEmailsFromPostgres(): Promise<{ totalIndexed: number }> {
@@ -269,11 +277,11 @@ export const elasticsearchService = {
     for (const email of emails) {
       const doc = await this.formatEmailDocument(email);
       if (doc) {
-        const client = getElasticsearchClient();
+        const client = getOpenSearchClient();
         await client.index({
           index: ELASTICSEARCH_EMAIL_INDEX,
           id: doc.id,
-          document: doc,
+          body: doc,
         });
         indexedCount++;
       }
@@ -282,3 +290,5 @@ export const elasticsearchService = {
     return { totalIndexed: indexedCount };
   },
 };
+
+export const openSearchService = elasticsearchService;

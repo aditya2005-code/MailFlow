@@ -50,7 +50,7 @@
   "dependencies": {
     "@bull-board/api": "^9.10.1",
     "@bull-board/express": "^9.10.1",
-    "@elastic/elasticsearch": "^8.19.2",
+    "@opensearch-project/opensearch": "^3.9.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@types/pg": "^8.23.1",
