@@ -60,6 +60,40 @@ export interface Email {
   };
 }
 
+export interface ParsedRecipient {
+  email: string;
+  name?: string;
+}
+
+export interface CSVParseSummary {
+  totalRows: number;
+  validCount: number;
+  invalidCount: number;
+  duplicatesRemoved: number;
+  validRecipients: ParsedRecipient[];
+  invalidRows: string[];
+}
+
+export interface CreateCampaignRequest {
+  senderId: string;
+  name: string;
+  subject: string;
+  body: string;
+}
+
+export interface BulkEmailRequestItem {
+  recipientEmail: string;
+  recipientName?: string;
+  subject?: string;
+  body?: string;
+  scheduledAt?: string;
+}
+
+export interface BulkCreateResponseData {
+  created: number;
+  duplicatesSkipped: number;
+}
+
 export interface PaginationMeta {
   page: number;
   limit: number;
