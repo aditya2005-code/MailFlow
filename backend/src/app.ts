@@ -8,6 +8,7 @@ import { env } from './config/env.js';
 import healthRouter from './routes/health.js';
 import apiRouter from './routes/index.js';
 import authRouter from './routes/auth.routes.js';
+import slackRouter from './routes/slack.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { configurePassport } from './config/passport.js';
 import { getBullBoardAdapter } from './config/bullBoard.js';
@@ -55,6 +56,10 @@ export function createApp(): Application {
   // ─── Auth Routes (/api/auth & /api/v1/auth) ──────────────────────────────────
   app.use('/api/auth', authRouter);
   app.use('/api/v1/auth', authRouter);
+
+  // ─── Slack OAuth & Management Routes (/api/slack & /api/v1/slack) ─────────────
+  app.use('/api/slack', slackRouter);
+  app.use('/api/v1/slack', slackRouter);
 
   // ─── Bull Board Dashboard Route ─────────────────────────────────────────────
   const bullBoardAdapter = getBullBoardAdapter();
