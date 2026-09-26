@@ -14,6 +14,19 @@ export const googleAuth = (req: Request, res: Response, next: NextFunction) => {
 };
 
 /**
+ * Helper to construct safe, normalized frontend redirect URLs.
+ * Prevents double path concatenation such as /dashboard/dashboard when FRONTEND_URL includes path suffixes.
+ */
+function getFrontendRedirectUrl(path: string): string {
+  const baseUrl = (env.FRONTEND_URL || 'http://localhost:5173')
+    .replace(/\/+$/, '')
+    .replace(/\/dashboard\/?$/, '')
+    .replace(/\/login\/?$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${baseUrl}${cleanPath}`;
+}
+
+/**
  * Handles Google OAuth 2.0 authorization code callback.
  *
  * Exchanges code for user profile, upserts User record, generates JWT token,
@@ -23,13 +36,13 @@ export const googleAuthCallback = (req: Request, res: Response, next: NextFuncti
   passport.authenticate('google', { session: false }, (err: any, user: User | false) => {
     if (err || !user) {
       console.error('[auth] ❌ Google OAuth authentication failed:', err?.message || 'Denied/Failed');
-      return res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
+      return res.redirect(getFrontendRedirectUrl('/login?error=oauth_failed'));
     }
 
     const token = authService.generateToken(user.id);
     res.cookie(AUTH_COOKIE_NAME, token, authService.getCookieOptions());
 
-    return res.redirect(`${env.FRONTEND_URL}/dashboard`);
+    return res.redirect(getFrontendRedirectUrl('/dashboard'));
   })(req, res, next);
 };
 
