@@ -31,6 +31,7 @@
     "bullboard:test": "tsx src/utils/test-bull-board.ts",
     "auth:test": "tsx src/utils/test-google-auth.ts",
     "slack:test": "tsx src/utils/test-slack-auth-notifications.ts",
+    "compose:test": "tsx src/utils/test-compose-scheduling-e2e.ts",
     "services:up": "docker compose -f ../docker-compose.yml up -d",
     "postinstall": "prisma generate"
   },
