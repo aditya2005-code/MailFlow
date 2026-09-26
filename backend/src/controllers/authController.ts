@@ -40,9 +40,15 @@ export const googleAuthCallback = (req: Request, res: Response, next: NextFuncti
     }
 
     const token = authService.generateToken(user.id);
-    res.cookie(AUTH_COOKIE_NAME, token, authService.getCookieOptions());
+    const cookieOpts = authService.getCookieOptions();
+    res.cookie(AUTH_COOKIE_NAME, token, cookieOpts);
 
-    return res.redirect(getFrontendRedirectUrl('/dashboard'));
+    const redirectTarget = getFrontendRedirectUrl('/dashboard');
+    console.log(`[auth] ✅ Google OAuth succeeded for user: ${user.email} (ID: ${user.id})`);
+    console.log(`[auth] 🍪 Set-Cookie: ${AUTH_COOKIE_NAME} (secure=${cookieOpts.secure}, sameSite=${cookieOpts.sameSite})`);
+    console.log(`[auth] ↗️ Redirecting to frontend dashboard: ${redirectTarget}`);
+
+    return res.redirect(redirectTarget);
   })(req, res, next);
 };
 

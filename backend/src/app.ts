@@ -23,6 +23,9 @@ import { requireAuth } from './middleware/authDev.js';
 export function createApp(): Application {
   const app = express();
 
+  // Enable reverse proxy trust (required on Render/Heroku for HTTPS req.protocol & Secure cookies)
+  app.set('trust proxy', 1);
+
   // ─── Passport & OAuth Setup ──────────────────────────────────────────────────
   const passport = configurePassport();
   app.use(passport.initialize());
@@ -34,9 +37,19 @@ export function createApp(): Application {
   app.use(cookieParser());
 
   // ─── CORS ────────────────────────────────────────────────────────────────────
+  const cleanFrontendUrl = env.FRONTEND_URL.replace(/\/+$/, '');
+  const allowedOrigins = [cleanFrontendUrl, `${cleanFrontendUrl}/`, 'http://localhost:5173'];
+
   app.use(
     cors({
-      origin: env.FRONTEND_URL,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const reqOrigin = origin.replace(/\/+$/, '');
+        if (allowedOrigins.some((o) => o.replace(/\/+$/, '') === reqOrigin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'x-dev-user-id'],
