@@ -68,9 +68,14 @@ async function runElasticsearchSearchTests() {
     // A. TEST A: Index Creation
     console.log('\n--- TEST A: Index Creation ---');
     const client = getElasticsearchClient();
-    await client.indices.delete({ index: ELASTICSEARCH_EMAIL_INDEX, ignore_unavailable: true });
+    const existsBefore = await client.indices.exists({ index: ELASTICSEARCH_EMAIL_INDEX });
+    const isExisting = typeof existsBefore === 'boolean' ? existsBefore : (existsBefore as any).body ?? existsBefore;
+    if (isExisting) {
+      await client.indices.delete({ index: ELASTICSEARCH_EMAIL_INDEX });
+    }
     await elasticsearchService.ensureEmailIndex();
-    const indexExists = await client.indices.exists({ index: ELASTICSEARCH_EMAIL_INDEX });
+    const indexExistsRes = await client.indices.exists({ index: ELASTICSEARCH_EMAIL_INDEX });
+    const indexExists = typeof indexExistsRes === 'boolean' ? indexExistsRes : (indexExistsRes as any).body ?? indexExistsRes;
     console.log(`   ✅ Index '${ELASTICSEARCH_EMAIL_INDEX}' exists: ${indexExists}`);
     if (!indexExists) throw new Error(`Index '${ELASTICSEARCH_EMAIL_INDEX}' was not created`);
 

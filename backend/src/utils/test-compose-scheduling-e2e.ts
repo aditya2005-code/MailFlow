@@ -5,7 +5,7 @@ import { emailService } from '../services/emailService.js';
 import { getEmailQueue, closeEmailQueue } from '../queues/index.js';
 import { getEmailWorker, closeEmailWorker } from '../workers/emailWorker.js';
 import { elasticsearchService } from '../services/elasticsearchService.js';
-import { closeRedisClient } from '../config/redis.js';
+import { rateLimitService } from '../services/rateLimitService.js';
 import { EmailStatus } from '@prisma/client';
 
 async function runE2EComposeTest() {
@@ -94,6 +94,7 @@ async function runE2EComposeTest() {
 
     // 7. Start Email Worker & Process Delayed Job
     console.log('\n--- Starting BullMQ Worker to process scheduled email delivery ---');
+    await rateLimitService.resetLimits();
     const worker = getEmailWorker();
 
     // Wait up to 15 seconds for worker to deliver emails past the +2s delay and minimum send delay

@@ -23,7 +23,10 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional().transform((val) => val || undefined),
 
-  // ─── Elasticsearch ───────────────────────────────────────────────────────────
+  // ─── OpenSearch / Elasticsearch ─────────────────────────────────────────────
+  OPENSEARCH_URL: z.string().optional().transform((val) => val || undefined),
+  OPENSEARCH_USERNAME: z.string().optional().transform((val) => val || undefined),
+  OPENSEARCH_PASSWORD: z.string().optional().transform((val) => val || undefined),
   ELASTICSEARCH_URL: z.string().default('http://localhost:9200'),
 
   // ─── Google OAuth ────────────────────────────────────────────────────────────
