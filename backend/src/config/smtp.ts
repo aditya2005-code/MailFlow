@@ -20,15 +20,15 @@ export function createSmtpTransporter(): Transporter {
   return nodemailer.createTransport({
     host,
     port,
-    secure: port === 465, // true for port 465, false for 587/25
+    secure: port === 465, // true for port 465 (TLS/SSL), false for 587/2525 (STARTTLS)
     auth: {
       user,
       pass,
     },
-    // Production/Dev timeout configurations
-    connectionTimeout: 10000, // 10s
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    // Cloud-oriented (Render/AWS) timeout configurations to prevent aggressive connection timeouts
+    connectionTimeout: 30000, // 30s connection timeout
+    greetingTimeout: 30000,   // 30s greeting timeout
+    socketTimeout: 45000,     // 45s socket timeout
   });
 }
 
@@ -57,20 +57,26 @@ export function getSmtpTransporter(): Transporter {
 
 /**
  * Verifies Ethereal SMTP server connection and authentication without sending emails.
+ * Safely reports target host, port, secure mode, and auth presence without exposing secrets.
  */
 export async function verifySmtpConnection(): Promise<{ success: boolean; message: string }> {
+  const host = env.ETHEREAL_HOST || 'smtp.ethereal.email';
+  const port = env.ETHEREAL_PORT || 587;
+  const secure = port === 465;
+  const hasAuth = Boolean(env.ETHEREAL_USER && env.ETHEREAL_PASSWORD);
+
   try {
     const transporter = getSmtpTransporter();
     await transporter.verify();
     return {
       success: true,
-      message: `Successfully authenticated with SMTP server (${env.ETHEREAL_HOST || 'smtp.ethereal.email'})`,
+      message: `Successfully authenticated with SMTP server (${host}:${port}, secure=${secure}, authConfigured=${hasAuth})`,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,
-      message: `SMTP connection verification failed: ${errorMessage}`,
+      message: `SMTP connection failed (${host}:${port}, secure=${secure}, authConfigured=${hasAuth}): ${errorMessage}`,
     };
   }
 }
