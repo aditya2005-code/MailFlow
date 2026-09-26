@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "clean": "node ../scripts/clean-ports.cjs",
     "build": "tsc --project tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
@@ -19,6 +20,8 @@
     "queue:test": "tsx src/utils/test-email-queue.ts",
     "scheduler:test": "tsx src/utils/test-scheduler-service.ts",
     "worker": "tsx src/workers/index.ts",
+    "worker:prod": "node dist/workers/index.js",
+    "start:worker": "node dist/workers/index.js",
     "worker:test": "tsx src/utils/test-worker-delivery.ts",
     "reliability:test": "tsx src/utils/test-reliability-idempotency.ts",
     "limiter:test": "tsx src/utils/test-rate-limiter.ts",

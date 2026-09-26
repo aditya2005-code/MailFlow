@@ -29,7 +29,7 @@ export const googleAuthCallback = (req: Request, res: Response, next: NextFuncti
     const token = authService.generateToken(user.id);
     res.cookie(AUTH_COOKIE_NAME, token, authService.getCookieOptions());
 
-    return res.redirect(env.FRONTEND_URL);
+    return res.redirect(`${env.FRONTEND_URL}/dashboard`);
   })(req, res, next);
 };
 

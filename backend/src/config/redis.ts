@@ -5,14 +5,21 @@ import { env } from './env.js';
  * Redis connection options for ioredis and BullMQ.
  * Note: BullMQ requires `maxRetriesPerRequest: null` for standard queue operations.
  */
-export const redisOptions: RedisOptions = {
-  host: env.REDIS_HOST,
-  port: env.REDIS_PORT,
-  password: env.REDIS_PASSWORD || undefined,
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-  lazyConnect: true,
-};
+export const redisOptions: RedisOptions = env.REDIS_URL
+  ? {
+      ...new Redis(env.REDIS_URL, { lazyConnect: true }).options,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      lazyConnect: true,
+    }
+  : {
+      host: env.REDIS_HOST,
+      port: env.REDIS_PORT,
+      password: env.REDIS_PASSWORD || undefined,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      lazyConnect: true,
+    };
 
 let redisClientInstance: Redis | null = null;
 
