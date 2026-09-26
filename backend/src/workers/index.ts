@@ -1,6 +1,7 @@
 import { getEmailWorker, closeEmailWorker } from './emailWorker.js';
 import { closeRedisClient } from '../config/redis.js';
 import { prisma } from '../config/prisma.js';
+import { verifySmtpConnection } from '../config/smtp.js';
 
 /**
  * Standalone worker entrypoint for MailFlow background email processing.
@@ -8,6 +9,19 @@ import { prisma } from '../config/prisma.js';
  */
 async function startWorkerProcess() {
   console.log('[worker-process] MailFlow email worker process started.');
+
+  // Safe SMTP connectivity diagnostic check (non-blocking)
+  verifySmtpConnection()
+    .then((status) => {
+      if (status.success) {
+        console.log(`[worker-process] ✅ ${status.message}`);
+      } else {
+        console.warn(`[worker-process] ⚠️ ${status.message}`);
+      }
+    })
+    .catch((err) => {
+      console.warn('[worker-process] ⚠️ SMTP diagnostic check error:', err?.message || err);
+    });
 
   const worker = getEmailWorker();
 
