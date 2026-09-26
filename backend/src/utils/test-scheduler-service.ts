@@ -10,12 +10,10 @@ import { campaignService } from '../services/campaignService.js';
 import { getEmailJob, closeEmailQueue, EMAIL_QUEUE_NAME } from '../queues/index.js';
 
 /**
- * Step 3.2 Scheduler Service & Delayed Jobs Integration Verification Suite.
+ * Scheduler Service & Delayed Jobs Integration Verification Suite.
  */
 async function runSchedulerTests() {
-  console.log('====================================================');
-  console.log('STARTING PHASE 3 STEP 3.2 SCHEDULER SERVICE INTEGRATION TEST');
-  console.log('====================================================\n');
+  console.log('--- Starting Scheduler Service Integration Tests ---');
 
   const app = createApp();
   const PORT = 3099;
@@ -32,9 +30,16 @@ async function runSchedulerTests() {
   try {
     // 0. Setup Dev User, Sender & Campaign
     console.log('0. Setting up dev user, sender, and campaign context...');
-    const meRes = await fetch(`${baseUrl}/api/v1/users/me`);
-    const meJson = (await meRes.json()) as any;
-    const userId = meJson.data.id;
+    const user = await prisma.user.upsert({
+      where: { googleId: 'dev-google-user-id-001' },
+      update: {},
+      create: {
+        googleId: 'dev-google-user-id-001',
+        email: 'dev.user@mailflow.local',
+        name: 'Development User',
+      },
+    });
+    const userId = user.id;
     const authHeaders = {
       'Content-Type': 'application/json',
       'x-dev-user-id': userId,
@@ -125,9 +130,7 @@ async function runSchedulerTests() {
     const invalidCancelJson = await invalidCancelRes.json();
     console.log(`   ✅ Repeated Cancel on already cancelled email Status: ${invalidCancelRes.status}`, invalidCancelJson);
 
-    console.log('\n====================================================');
-    console.log('🎉 SCHEDULER SERVICE INTEGRATION TEST PASSED SUCCESSFULLY!');
-    console.log('====================================================\n');
+    console.log('✅ Scheduler Service Integration Tests Completed Successfully!');
   } catch (error) {
     console.error('❌ Scheduler Service Test Failed:', error);
     process.exitCode = 1;

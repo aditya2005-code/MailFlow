@@ -42,28 +42,22 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
   const currentAttempt = (job.attemptsMade || 0) + 1;
   const maxAttempts = job.opts?.attempts || 3;
 
-  console.log(
-    `[worker] 📥 Job ${job.id} started for emailId: ${emailId} (Attempt ${currentAttempt}/${maxAttempts})`,
-  );
-
   // 1. Retrieve Email record from PostgreSQL (source of truth)
   const email = await emailRepository.findById(emailId);
 
   if (!email) {
     const errorMsg = `Email record with ID '${emailId}' not found in database.`;
-    console.error(`[worker] ❌ ${errorMsg}`);
+    console.error(`[worker] ${errorMsg}`);
     throw new Error(errorMsg);
   }
 
   // 2. Idempotency Check — Skip if already SENT
   if (email.status === EmailStatus.SENT) {
-    console.log(`[worker] ℹ️ Email ${emailId} is already marked SENT. Skipping duplicate execution.`);
     return { status: 'skipped', reason: 'already_sent' };
   }
 
   // 3. Skip if already FAILED (and not being manually re-scheduled)
   if (email.status === EmailStatus.FAILED && currentAttempt === 1) {
-    console.log(`[worker] ℹ️ Email ${emailId} is marked FAILED. Skipping execution.`);
     return { status: 'skipped', reason: 'already_failed' };
   }
 
@@ -77,10 +71,6 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
   const rateLimitResult = await rateLimitService.acquireSendSlot();
 
   if (!rateLimitResult.allowed) {
-    console.log(
-      `[worker] ⏳ Rate limit enforced (${rateLimitResult.reason}). Rescheduling email ${emailId} with ${rateLimitResult.delayMs}ms delay...`,
-    );
-
     // Trigger Slack notification for the user if hourly limit reached (safe async, non-blocking)
     if (rateLimitResult.reason === 'hourly_limit_reached' && email.campaign?.userId) {
       slackConnectionService
@@ -90,7 +80,7 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
             rateLimitResult.nextAvailableTimeMs || Date.now() + rateLimitResult.delayMs,
         })
         .catch((err) => {
-          console.error('[worker] ⚠️ Slack notification attempt failed:', err?.message || err);
+          console.error('[worker] Slack notification attempt failed:', err?.message || err);
         });
     }
 
@@ -114,10 +104,9 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     );
 
     if (!claimed) {
-      console.warn(`[worker] ⚠️ Email ${emailId} could not be claimed atomically. Skipping.`);
+      console.warn(`[worker] Email ${emailId} could not be claimed atomically. Skipping.`);
       return { status: 'skipped', reason: 'claim_failed' };
     }
-    console.log(`[worker] 🔒 Email ${emailId} claimed atomically (SCHEDULED -> PROCESSING)`);
   }
 
   // 7. Send Email via Nodemailer SMTP
@@ -128,8 +117,6 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     const senderName = email.sender?.name || 'MailFlow Sender';
     const fromAddress = `"${senderName}" <${senderEmail}>`;
 
-    console.log(`[worker] ✉️ Sending email ${emailId} to ${email.recipientEmail}...`);
-
     const info = await transporter.sendMail({
       from: fromAddress,
       to: email.recipientEmail,
@@ -139,9 +126,6 @@ export async function processEmailJob(job: Job<EmailJobPayload>): Promise<any> {
     });
 
     const previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
-    console.log(
-      `[worker] ✅ SMTP accepted message ${info.messageId} for email ${emailId}. Preview URL: ${previewUrl || 'N/A'}`,
-    );
 
     // 8. Update PostgreSQL state: PROCESSING -> SENT
     await emailRepository.updateStatusAtomic(
@@ -235,21 +219,13 @@ export function getEmailWorker(): Worker<EmailJobPayload> {
       maxStalledCount: 2,     // Recover stalled jobs up to 2 times before failing
     });
 
-    emailWorkerInstance.on('completed', (job, result) => {
-      console.log(`[worker] 🎉 Job ${job.id} completed successfully!`, result);
-    });
-
     emailWorkerInstance.on('failed', (job, err) => {
-      console.error(`[worker] 💥 Job ${job?.id || 'unknown'} failed: ${err.message}`);
+      console.error(`[worker] Job ${job?.id || 'unknown'} failed: ${err.message}`);
     });
 
     emailWorkerInstance.on('error', (err) => {
       console.error('[worker] Worker instance error:', err.message);
     });
-
-    console.log(
-      `[worker] 🚀 Email worker initialized (concurrency=${concurrency}, maxPerHour=${env.MAX_EMAILS_PER_HOUR}, minDelayMs=${env.MIN_EMAIL_DELAY_MS})`,
-    );
   }
 
   return emailWorkerInstance;
@@ -260,9 +236,7 @@ export function getEmailWorker(): Worker<EmailJobPayload> {
  */
 export async function closeEmailWorker(): Promise<void> {
   if (emailWorkerInstance) {
-    console.log('[worker] Closing BullMQ email worker...');
     await emailWorkerInstance.close();
     emailWorkerInstance = null;
-    console.log('[worker] Email worker closed cleanly.');
   }
 }

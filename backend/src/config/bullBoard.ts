@@ -21,8 +21,6 @@ export function getBullBoardAdapter(): ExpressAdapter {
       queues: [new BullMQAdapter(emailQueue)],
       serverAdapter: serverAdapterInstance,
     });
-
-    console.log('[bull-board] 📊 Bull Board queue dashboard configured at /admin/queues');
   }
 
   return serverAdapterInstance;

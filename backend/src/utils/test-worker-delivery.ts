@@ -10,12 +10,10 @@ import { EmailStatus } from '@prisma/client';
 import { env } from '../config/env.js';
 
 /**
- * Step 4.1 End-to-End Worker Delivery & Reliability Integration Test Suite.
+ * Worker Delivery & Reliability Integration Test Suite.
  */
 async function runWorkerDeliveryTests() {
-  console.log('====================================================');
-  console.log('STARTING STEP 4.1 BULLMQ WORKER & ETHEREAL SMTP TEST');
-  console.log('====================================================\n');
+  console.log('--- Starting Worker & SMTP Delivery Tests ---');
 
   // Initialize Worker
   const workerInstance = getEmailWorker();
@@ -131,9 +129,7 @@ async function runWorkerDeliveryTests() {
     console.log('\n5. Test Case 5: Worker Concurrency Configuration Check...');
     console.log(`   ✅ Worker Concurrency configured as: ${env.WORKER_CONCURRENCY}`);
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL STEP 4.1 WORKER DELIVERY TESTS PASSED SUCCESSFULLY!');
-    console.log('====================================================\n');
+    console.log('✅ Worker Delivery Tests Completed Successfully!');
   } catch (error) {
     console.error('❌ Worker Delivery Test Failed:', error);
     process.exitCode = 1;

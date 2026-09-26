@@ -5,9 +5,7 @@ import { getRedisClient, closeRedisClient } from '../config/redis.js';
 import { env } from '../config/env.js';
 
 async function runSlackTests() {
-  console.log('====================================================');
-  console.log('🚀 RUNNING PHASE 6.2 SLACK OAUTH & NOTIFICATION TESTS');
-  console.log('====================================================\n');
+  console.log('--- Starting Slack OAuth & Notification Tests ---');
 
   // Backup original global fetch
   const originalFetch = global.fetch;
@@ -285,9 +283,7 @@ async function runSlackTests() {
     await prisma.slackConnection.deleteMany({ where: { userId: { in: [testUser.id, newTestUserId] } } });
     await prisma.user.deleteMany({ where: { id: { in: [testUser.id, newTestUserId] } } });
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL PHASE 6.2 SLACK TESTS PASSED SUCCESSFULLY!');
-    console.log('====================================================\n');
+    console.log('✅ Slack OAuth & Notification Tests Completed Successfully!');
   } finally {
     global.fetch = originalFetch;
     await closeRedisClient();

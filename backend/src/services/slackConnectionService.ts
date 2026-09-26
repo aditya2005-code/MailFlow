@@ -187,15 +187,11 @@ export const slackConnectionService = {
       // Distributed deduplication: 1 notification per rate-limit window per user
       const acquired = await redis.set(dedupKey, '1', 'EX', 3600, 'NX');
       if (!acquired) {
-        console.log(
-          `[slack] ℹ️ Rate limit notification already sent for user ${userId} in window ${windowStr}. Skipping duplicate.`,
-        );
         return false;
       }
 
       const connections = await slackConnectionRepository.findByUserId(userId);
       if (connections.length === 0 || !connections[0]) {
-        console.log(`[slack] ℹ️ User ${userId} has no Slack connection configured. Skipping notification.`);
         return false;
       }
 
@@ -241,7 +237,6 @@ export const slackConnectionService = {
         return false;
       }
 
-      console.log(`[slack] 🔔 Sent rate-limit notification to user ${userId} via Slack webhook.`);
       return true;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);

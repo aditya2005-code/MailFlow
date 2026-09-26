@@ -25,7 +25,7 @@ const envSchema = z.object({
   // ─── Elasticsearch ───────────────────────────────────────────────────────────
   ELASTICSEARCH_URL: z.string().default('http://localhost:9200'),
 
-  // ─── Google OAuth (Optional until Phase 4) ──────────────────────────────────
+  // ─── Google OAuth ────────────────────────────────────────────────────────────
   GOOGLE_CLIENT_ID: z.string().optional().transform((val) => val || undefined),
   GOOGLE_CLIENT_SECRET: z.string().optional().transform((val) => val || undefined),
   GOOGLE_CALLBACK_URL: z.string().optional().transform((val) => val || undefined),
@@ -34,7 +34,7 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().default('dev-session-secret-change-in-production'),
   JWT_SECRET: z.string().default('dev-jwt-secret-mailflow-2026-production-change'),
 
-  // ─── Slack OAuth (Optional until Phase 4) ───────────────────────────────────
+  // ─── Slack OAuth ─────────────────────────────────────────────────────────────
   SLACK_CLIENT_ID: z.string().optional().transform((val) => val || undefined),
   SLACK_CLIENT_SECRET: z.string().optional().transform((val) => val || undefined),
   SLACK_REDIRECT_URI: z.string().optional().transform((val) => val || undefined),
@@ -44,7 +44,7 @@ const envSchema = z.object({
   MIN_EMAIL_DELAY_MS: z.coerce.number().int().nonnegative().default(2000),
   MAX_EMAILS_PER_HOUR: z.coerce.number().int().positive().default(100),
 
-  // ─── Ethereal SMTP (Optional until Phase 3) ──────────────────────────────────
+  // ─── Ethereal SMTP ───────────────────────────────────────────────────────────
   ETHEREAL_HOST: z.string().optional().transform((val) => val || undefined),
   ETHEREAL_PORT: z.preprocess(
     (val) => (val !== undefined && val !== '' ? Number(val) : undefined),

@@ -40,9 +40,8 @@ export function configurePassport(): typeof passport {
         },
       ),
     );
-    console.log('[passport] 🔑 Passport Google OAuth strategy initialized.');
   } else {
-    console.warn('[passport] ⚠️ GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing. Real Google OAuth login disabled.');
+    console.warn('[passport] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing. Real Google OAuth login disabled.');
   }
 
   return passport;

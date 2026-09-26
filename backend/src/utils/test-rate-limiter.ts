@@ -11,12 +11,10 @@ import { EmailStatus } from '@prisma/client';
 import { env } from '../config/env.js';
 
 /**
- * Step 5.1 Distributed Email Rate Limiting Integration Test Suite
+ * Distributed Email Rate Limiting Integration Test Suite.
  */
 async function runRateLimiterTests() {
-  console.log('====================================================');
-  console.log('STARTING STEP 5.1 DISTRIBUTED RATE LIMITER TESTS');
-  console.log('====================================================\n');
+  console.log('--- Starting Distributed Rate Limiter Tests ---');
 
   const testKeyPrefix = `test-${Date.now()}`;
 
@@ -162,11 +160,9 @@ async function runRateLimiterTests() {
     // Reset Redis hourly count for cleanup
     await redis.del(`mailflow:rate-limit:global:hourly:${currentWindowStr}`);
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL STEP 5.1 DISTRIBUTED RATE LIMITER TESTS PASSED!');
-    console.log('====================================================\n');
+    console.log('✅ Rate Limiter Tests Completed Successfully!');
   } catch (error) {
-    console.error('❌ Step 5.1 Rate Limiter Test Suite Failed:', error);
+    console.error('❌ Rate Limiter Test Suite Failed:', error);
     process.exitCode = 1;
   } finally {
     await closeEmailWorker().catch(() => {});

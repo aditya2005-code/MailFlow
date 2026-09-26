@@ -8,12 +8,10 @@ import { closeRedisClient } from '../config/redis.js';
 import { closeElasticsearchClient } from '../config/elasticsearch.js';
 
 /**
- * Step 6.1 Google OAuth & JWT Authentication Integration Test Suite
+ * Google OAuth & JWT Authentication Integration Test Suite.
  */
 async function runGoogleAuthTests() {
-  console.log('====================================================');
-  console.log('STARTING STEP 6.1 GOOGLE OAUTH & JWT AUTH TESTS');
-  console.log('====================================================\n');
+  console.log('--- Starting Google OAuth & Auth Tests ---');
 
   const app = createApp();
   const server = http.createServer(app);
@@ -180,11 +178,9 @@ async function runGoogleAuthTests() {
       throw new Error('OAuth error callback did not redirect gracefully to frontend with error query');
     }
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL STEP 6.1 GOOGLE OAUTH & JWT TESTS PASSED!');
-    console.log('====================================================\n');
+    console.log('✅ Google OAuth & Auth Tests Completed Successfully!');
   } catch (error) {
-    console.error('❌ Step 6.1 Auth Test Suite Failed:', error);
+    console.error('❌ Auth Test Suite Failed:', error);
     process.exitCode = 1;
   } finally {
     server.close();
