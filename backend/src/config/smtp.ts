@@ -7,7 +7,7 @@ import { env } from './env.js';
  */
 export function createSmtpTransporter(): Transporter {
   const host = env.ETHEREAL_HOST || 'smtp.ethereal.email';
-  const port = env.ETHEREAL_PORT || 587;
+  const port = env.ETHEREAL_PORT || 465;
   const user = env.ETHEREAL_USER;
   const pass = env.ETHEREAL_PASSWORD;
 
@@ -29,6 +29,9 @@ export function createSmtpTransporter(): Transporter {
     connectionTimeout: 30000, // 30s connection timeout
     greetingTimeout: 30000,   // 30s greeting timeout
     socketTimeout: 45000,     // 45s socket timeout
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 }
 
