@@ -25,7 +25,7 @@ export const slackConnectionService = {
    */
   async getSlackAuthUrl(userId: string): Promise<{ url: string; state: string }> {
     const clientId = env.SLACK_CLIENT_ID || process.env.SLACK_CLIENT_ID || 'mock_slack_client_id';
-    const redirectUri = env.SLACK_REDIRECT_URI || process.env.SLACK_REDIRECT_URI || 'http://localhost:5000/api/slack/callback';
+    const redirectUri = env.SLACK_REDIRECT_URI || `${env.FRONTEND_URL}/api/v1/slack/callback`;
 
     if (!clientId) {
       throw new ValidationError('SLACK_CLIENT_ID is not configured.');
@@ -69,7 +69,7 @@ export const slackConnectionService = {
 
     const clientId = env.SLACK_CLIENT_ID || process.env.SLACK_CLIENT_ID || 'mock_slack_client_id';
     const clientSecret = env.SLACK_CLIENT_SECRET || process.env.SLACK_CLIENT_SECRET || 'mock_slack_client_secret';
-    const redirectUri = env.SLACK_REDIRECT_URI || process.env.SLACK_REDIRECT_URI || 'http://localhost:5000/api/slack/callback';
+    const redirectUri = env.SLACK_REDIRECT_URI || `${env.FRONTEND_URL}/api/v1/slack/callback`;
 
     if (!clientId || !clientSecret) {
       throw new ValidationError('Slack OAuth credentials are not configured on the server.');

@@ -16,7 +16,17 @@ import { createApp } from './app.js';
 const app = createApp();
 const server = http.createServer(app);
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+server.on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[server] ❌ Port ${env.PORT} is already in use by another process.`);
+    console.error(`[server] Free port ${env.PORT} or run process cleanup before starting MailFlow backend.`);
+    process.exit(1);
+  } else {
+    console.error('[server] Server error:', err);
+    process.exit(1);
+  }
+});
+
 server.listen(env.PORT, () => {
   console.log(
     `[server] MailFlow backend is running` +

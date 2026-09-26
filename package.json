@@ -1,0 +1,14 @@
+{
+  "name": "mailflow-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MailFlow application workspace root",
+  "scripts": {
+    "clean": "node scripts/clean-ports.cjs",
+    "backend": "npm --prefix backend run dev",
+    "frontend": "npm --prefix frontend run dev",
+    "worker": "npm --prefix backend run worker",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "typecheck": "npm --prefix backend run typecheck && npm --prefix frontend run build"
+  }
+}

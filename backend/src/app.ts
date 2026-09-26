@@ -12,6 +12,7 @@ import slackRouter from './routes/slack.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { configurePassport } from './config/passport.js';
 import { getBullBoardAdapter } from './config/bullBoard.js';
+import { requireAuth } from './middleware/authDev.js';
 
 /**
  * Creates and configures the Express application.
@@ -63,7 +64,11 @@ export function createApp(): Application {
 
   // ─── Bull Board Dashboard Route ─────────────────────────────────────────────
   const bullBoardAdapter = getBullBoardAdapter();
-  app.use('/admin/queues', bullBoardAdapter.getRouter());
+  if (env.NODE_ENV === 'production') {
+    app.use('/admin/queues', requireAuth, bullBoardAdapter.getRouter());
+  } else {
+    app.use('/admin/queues', bullBoardAdapter.getRouter());
+  }
 
   // ─── API Routes ───────────────────────────────────────────────────────────────
   app.use('/api/v1', apiRouter);
