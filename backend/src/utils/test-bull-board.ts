@@ -10,12 +10,10 @@ import { closeRedisClient } from '../config/redis.js';
 import { closeElasticsearchClient } from '../config/elasticsearch.js';
 
 /**
- * Step 5.3 Bull Board Integration & Route Test Suite
+ * Bull Board Dashboard Test Suite.
  */
 async function runBullBoardTests() {
-  console.log('====================================================');
-  console.log('STARTING STEP 5.3 BULL BOARD DASHBOARD TESTS');
-  console.log('====================================================\n');
+  console.log('--- Starting Bull Board Dashboard Tests ---');
 
   const app = createApp();
   const server = http.createServer(app);
@@ -97,9 +95,7 @@ async function runBullBoardTests() {
     const processResult = await processEmailJob(mockJob);
     console.log(`   ✅ Job Process Result:`, processResult);
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL STEP 5.3 BULL BOARD TESTS PASSED SUCCESSFULLY!');
-    console.log('====================================================\n');
+    console.log('✅ Bull Board Dashboard Tests Completed Successfully!');
   } catch (error) {
     console.error('❌ Bull Board Test Failed:', error);
     process.exitCode = 1;

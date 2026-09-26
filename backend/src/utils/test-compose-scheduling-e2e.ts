@@ -9,9 +9,7 @@ import { closeRedisClient } from '../config/redis.js';
 import { EmailStatus } from '@prisma/client';
 
 async function runE2EComposeTest() {
-  console.log('====================================================');
-  console.log('🚀 RUNNING PHASE 7.2 COMPOSE & SCHEDULING E2E TEST');
-  console.log('====================================================\n');
+  console.log('--- Starting Compose & Scheduling E2E Test ---');
 
   try {
     // 1. Setup Test User & Sender
@@ -66,6 +64,9 @@ async function runE2EComposeTest() {
     }
 
     const firstEmail = createdEmails.emails[0];
+    if (!firstEmail) {
+      throw new Error('First email record missing from bulk creation');
+    }
     if (firstEmail.status !== EmailStatus.SCHEDULED) {
       throw new Error(`Expected status SCHEDULED, found ${firstEmail.status}`);
     }
@@ -95,14 +96,20 @@ async function runE2EComposeTest() {
     console.log('\n--- Starting BullMQ Worker to process scheduled email delivery ---');
     const worker = getEmailWorker();
 
-    // Wait 8 seconds for worker to deliver emails past the +2s delay and 2s rate limit delay
-    await new Promise((resolve) => setTimeout(resolve, 8000));
+    // Wait up to 15 seconds for worker to deliver emails past the +2s delay and minimum send delay
+    let updatedEmails = await prisma.email.findMany({ where: { campaignId: campaign.id } });
+    let sentCount = updatedEmails.filter(e => e.status === EmailStatus.SENT).length;
+    let pollAttempts = 0;
 
-    // 8. Verify Post-Delivery State (SCHEDULED -> SENT)
-    const updatedEmails = await prisma.email.findMany({ where: { campaignId: campaign.id } });
+    while (sentCount === 0 && pollAttempts < 15) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      updatedEmails = await prisma.email.findMany({ where: { campaignId: campaign.id } });
+      sentCount = updatedEmails.filter(e => e.status === EmailStatus.SENT).length;
+      pollAttempts++;
+    }
+
     console.log(`📊 Campaign emails status post-worker run:`, updatedEmails.map(e => `${e.recipientEmail}: ${e.status}`).join(', '));
 
-    const sentCount = updatedEmails.filter(e => e.status === EmailStatus.SENT).length;
     if (sentCount === 0) {
       throw new Error(`Expected at least 1 email to be delivered to SENT status by worker, found 0`);
     }
@@ -113,9 +120,7 @@ async function runE2EComposeTest() {
     await closeEmailQueue();
     await prisma.$disconnect();
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL PHASE 7.2 COMPOSE & SCHEDULING E2E TESTS PASSED!');
-    console.log('====================================================\n');
+    console.log('✅ Compose & Scheduling E2E Tests Completed Successfully!');
     process.exit(0);
   } catch (err: any) {
     console.error('\n❌ E2E Compose Test Error:', err);

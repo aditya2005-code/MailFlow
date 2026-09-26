@@ -10,12 +10,10 @@ import { closeEmailQueue } from '../queues/index.js';
 import { EmailStatus } from '@prisma/client';
 
 /**
- * Step 5.2 Elasticsearch Email Indexing and Search Test Suite
+ * Elasticsearch Email Indexing and Search Test Suite.
  */
 async function runElasticsearchSearchTests() {
-  console.log('====================================================');
-  console.log('STARTING STEP 5.2 ELASTICSEARCH INDEXING & SEARCH TESTS');
-  console.log('====================================================\n');
+  console.log('--- Starting Elasticsearch Email Indexing & Search Tests ---');
 
   try {
     // 0. Setup Users, Senders, Campaigns Context
@@ -69,16 +67,19 @@ async function runElasticsearchSearchTests() {
 
     // A. TEST A: Index Creation
     console.log('\n--- TEST A: Index Creation ---');
-    await elasticsearchService.ensureEmailIndex();
     const client = getElasticsearchClient();
+    await client.indices.delete({ index: ELASTICSEARCH_EMAIL_INDEX, ignore_unavailable: true });
+    await elasticsearchService.ensureEmailIndex();
     const indexExists = await client.indices.exists({ index: ELASTICSEARCH_EMAIL_INDEX });
     console.log(`   ✅ Index '${ELASTICSEARCH_EMAIL_INDEX}' exists: ${indexExists}`);
     if (!indexExists) throw new Error(`Index '${ELASTICSEARCH_EMAIL_INDEX}' was not created`);
 
     // B. TEST B: Email Indexing & G. Idempotent Indexing
     console.log('\n--- TEST B & G: Email Indexing & Idempotency ---');
+    const testId = Date.now();
+    const aliceEmail = `alice-${testId}@example.com`;
     const email1 = await emailService.createEmail(userA.id, campaignA.id, {
-      recipientEmail: 'alice.johnson@example.com',
+      recipientEmail: aliceEmail,
       recipientName: 'Alice Johnson',
       subject: 'Special Offer inside',
       body: 'Exclusive discount code for loyal subscribers.',
@@ -94,7 +95,7 @@ async function runElasticsearchSearchTests() {
 
     const searchAfterIndex = await elasticsearchService.searchEmails({
       userId: userA.id,
-      query: 'alice.johnson@example.com',
+      query: aliceEmail,
     });
 
     console.log(`   ✅ Indexed email found in ES: total=${searchAfterIndex.total}`);
@@ -239,11 +240,9 @@ async function runElasticsearchSearchTests() {
       process.env.ELASTICSEARCH_URL = originalHost;
     }
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL STEP 5.2 ELASTICSEARCH TESTS PASSED!');
-    console.log('====================================================\n');
+    console.log('✅ Elasticsearch Indexing & Search Tests Completed Successfully!');
   } catch (error) {
-    console.error('❌ Step 5.2 Elasticsearch Test Suite Failed:', error);
+    console.error('❌ Elasticsearch Test Suite Failed:', error);
     process.exitCode = 1;
   } finally {
     await closeEmailWorker().catch(() => {});

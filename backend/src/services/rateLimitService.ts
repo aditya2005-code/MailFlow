@@ -118,16 +118,6 @@ export const rateLimitService = {
 
     const isAllowed = allowedNum === 1;
 
-    if (!isAllowed) {
-      console.log(
-        `[rate-limiter] ⛔ Send slot denied (${reason}). Delay needed: ${delayMs}ms, Current hourly count: ${count}/${maxAllowed}`,
-      );
-    } else {
-      console.log(
-        `[rate-limiter] 🟢 Send slot acquired. Current hourly count: ${count}/${maxAllowed}`,
-      );
-    }
-
     return {
       allowed: isAllowed,
       reason: reason as any,

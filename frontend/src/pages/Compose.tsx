@@ -189,7 +189,6 @@ export const Compose: React.FC = () => {
     try {
       setIsSubmitting(true);
 
-      // Step 1: Create Campaign
       const campaign = await campaignApi.createCampaign({
         senderId: selectedSenderId,
         name: subject.trim(),
@@ -197,7 +196,6 @@ export const Compose: React.FC = () => {
         body: body,
       });
 
-      // Step 2: Prepare items for bulk creation (batch size 500)
       const scheduledIso = scheduledDate.toISOString();
       const recipients: ParsedRecipient[] = csvSummary.validRecipients;
 
@@ -332,7 +330,6 @@ export const Compose: React.FC = () => {
               </div>
             )}
 
-            {/* Step 1: Sender Selection */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-semibold text-slate-900">
@@ -421,7 +418,6 @@ export const Compose: React.FC = () => {
               )}
             </div>
 
-            {/* Step 2: Recipient CSV Upload & Preview */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
               <label className="block text-sm font-semibold text-slate-900">
                 2. Upload Recipient CSV <span className="text-rose-500">*</span>
@@ -560,7 +556,6 @@ export const Compose: React.FC = () => {
               )}
             </div>
 
-            {/* Step 3: Subject & Body */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
               <label className="block text-sm font-semibold text-slate-900">
                 3. Compose Content <span className="text-rose-500">*</span>
@@ -595,7 +590,6 @@ export const Compose: React.FC = () => {
               </div>
             </div>
 
-            {/* Step 4: Schedule Time & Rate Limiter Info */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
               <label className="block text-sm font-semibold text-slate-900">
                 4. Schedule Delivery Time & Server Rate Limiter

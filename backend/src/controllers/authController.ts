@@ -29,7 +29,6 @@ export const googleAuthCallback = (req: Request, res: Response, next: NextFuncti
     const token = authService.generateToken(user.id);
     res.cookie(AUTH_COOKIE_NAME, token, authService.getCookieOptions());
 
-    console.log(`[auth] 🔑 User ${user.email} authenticated via Google OAuth. Issued JWT session cookie.`);
     return res.redirect(env.FRONTEND_URL);
   })(req, res, next);
 };

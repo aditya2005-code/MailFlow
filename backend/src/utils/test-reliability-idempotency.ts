@@ -10,12 +10,10 @@ import { EmailStatus } from '@prisma/client';
 import { setSmtpTransporterOverride } from '../config/smtp.js';
 
 /**
- * Step 4.2 Delivery Reliability & Idempotency Test Suite
+ * Delivery Reliability & Idempotency Test Suite.
  */
 async function runReliabilityAndIdempotencyTests() {
-  console.log('====================================================');
-  console.log('STARTING STEP 4.2 DELIVERY RELIABILITY & IDEMPOTENCY TESTS');
-  console.log('====================================================\n');
+  console.log('--- Starting Delivery Reliability & Idempotency Tests ---');
 
   try {
     // 0. Setup Context
@@ -207,11 +205,9 @@ async function runReliabilityAndIdempotencyTests() {
       throw new Error('Worker stalled job lock configuration missing or incorrect');
     }
 
-    console.log('\n====================================================');
-    console.log('🎉 ALL STEP 4.2 RELIABILITY & IDEMPOTENCY TESTS PASSED!');
-    console.log('====================================================\n');
+    console.log('✅ Reliability & Idempotency Tests Completed Successfully!');
   } catch (error) {
-    console.error('❌ Step 4.2 Test Suite Failed:', error);
+    console.error('❌ Reliability Test Suite Failed:', error);
     process.exitCode = 1;
   } finally {
     await closeEmailWorker().catch(() => {});

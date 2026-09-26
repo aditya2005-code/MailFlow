@@ -80,12 +80,10 @@ export const elasticsearchService = {
       const exists = await client.indices.exists({ index: ELASTICSEARCH_EMAIL_INDEX });
 
       if (!exists) {
-        console.log(`[elasticsearch] Creating index '${ELASTICSEARCH_EMAIL_INDEX}' with explicit mapping...`);
         await client.indices.create({
           index: ELASTICSEARCH_EMAIL_INDEX,
           mappings: EMAIL_INDEX_MAPPING.mappings as any,
         });
-        console.log(`[elasticsearch] Index '${ELASTICSEARCH_EMAIL_INDEX}' created successfully.`);
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -156,8 +154,6 @@ export const elasticsearchService = {
         id: emailDoc.id,
         document: emailDoc,
       });
-
-      console.log(`[elasticsearch] 🔍 Indexed email ${emailDoc.id} into '${ELASTICSEARCH_EMAIL_INDEX}'`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[elasticsearch] Failed to index email: ${msg}`);
@@ -178,7 +174,6 @@ export const elasticsearchService = {
           updatedAt: new Date().toISOString(),
         },
       });
-      console.log(`[elasticsearch] 🔄 Updated document ${id} in '${ELASTICSEARCH_EMAIL_INDEX}'`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[elasticsearch] Failed to update document ${id}: ${msg}`);
@@ -259,7 +254,6 @@ export const elasticsearchService = {
    * Useful for initialization, environment reset, or recovery.
    */
   async reindexAllEmailsFromPostgres(): Promise<{ totalIndexed: number }> {
-    console.log('[elasticsearch] Starting full reindex from PostgreSQL...');
     await this.ensureEmailIndex();
 
     const emails = await prisma.email.findMany({
@@ -285,7 +279,6 @@ export const elasticsearchService = {
       }
     }
 
-    console.log(`[elasticsearch] Reindex complete. Total documents indexed: ${indexedCount}`);
     return { totalIndexed: indexedCount };
   },
 };

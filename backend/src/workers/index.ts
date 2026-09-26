@@ -7,9 +7,7 @@ import { prisma } from '../config/prisma.js';
  * Can be run independently via `npm run worker`.
  */
 async function startWorkerProcess() {
-  console.log('====================================================');
-  console.log('STARTING MAILFLOW BULLMQ EMAIL WORKER PROCESS');
-  console.log('====================================================\n');
+  console.log('[worker-process] MailFlow email worker process started.');
 
   const worker = getEmailWorker();
 
