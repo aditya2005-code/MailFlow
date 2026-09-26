@@ -1,5 +1,5 @@
 import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { Strategy as GoogleStrategy, Profile, VerifyCallback } from 'passport-google-oauth20';
 import { env } from './env.js';
 import { authService } from '../services/authService.js';
 
@@ -19,7 +19,7 @@ export function configurePassport(): typeof passport {
           clientSecret,
           callbackURL,
         },
-        async (_accessToken, _refreshToken, profile, done) => {
+        async (_accessToken: string, _refreshToken: string, profile: Profile, done: VerifyCallback) => {
           try {
             const email = profile.emails && profile.emails[0] ? profile.emails[0].value : undefined;
             if (!email) {

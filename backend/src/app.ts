@@ -42,7 +42,7 @@ export function createApp(): Application {
 
   app.use(
     cors({
-      origin: (origin, callback) => {
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         if (!origin) return callback(null, true);
         const reqOrigin = origin.replace(/\/+$/, '');
         if (allowedOrigins.some((o) => o.replace(/\/+$/, '') === reqOrigin)) {
